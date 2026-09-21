@@ -1,0 +1,2 @@
+package com.dextercai.dbamcp.domain.asset;
+public enum AssetType { HOST, DATABASE_CLUSTER, DATABASE_INSTANCE, DATABASE_SERVICE, OGG_DEPLOYMENT, OGG_PROCESS, CONFIG_RESOURCE }

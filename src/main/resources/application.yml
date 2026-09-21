@@ -1,0 +1,36 @@
+spring:
+  application:
+    name: dba-mcp
+  ai:
+    mcp:
+      server:
+        name: dba-mcp
+        version: 0.1.0
+        type: SYNC
+logging:
+  level:
+    com.dextercai.dbamcp: INFO
+dba:
+  assets:
+    sqlite:
+      jdbc-url: ${DBA_ASSETS_JDBC_URL:jdbc:sqlite:./data/dba-mcp-assets.db}
+      read-only: ${DBA_ASSETS_READ_ONLY:false}
+      busy-timeout: 5s
+  http:
+    api-token: ${DBA_MCP_API_TOKEN:dec19a4f-b2a9-4a2c-bf3c-22ec2d9d2cb2}
+    allowed-origins: ${DBA_MCP_ALLOWED_ORIGINS:}
+    # htpasswd -nBC 12 caiwzh
+    asset-admin-username: ${DBA_ASSET_ADMIN_USERNAME:caiwzh}
+    asset-admin-password-hash: ${DBA_ASSET_ADMIN_PASSWORD_HASH:$2y$12$5Ed64xDKgFDfuEBDRtGow.cr8cHVPSKICRkZWQ4xsqrLUzPhY3RYy}
+  database:
+    hikari:
+      connection-timeout: 30s
+      validation-timeout: 5s
+      # Cold target pools are evicted; do not turn low-frequency inventory into probe traffic.
+      keepalive-time: 0s
+      max-lifetime: 30m
+      idle-timeout: 10m
+    target-pools:
+      maximum-cached-pools: 128
+      maximum-pool-size: 1
+      cache-idle-timeout: 1m

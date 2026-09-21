@@ -1,0 +1,9 @@
+.git
+.github
+.idea
+.mvn/wrapper/maven-wrapper.jar
+target
+data
+deploy/docker/.env.production
+*.iml
+*.log

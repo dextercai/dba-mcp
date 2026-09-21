@@ -1,0 +1,10 @@
+spring:
+  main:
+    web-application-type: none
+  ai:
+    mcp:
+      server:
+        stdio: true
+logging:
+  console:
+    log-pattern: "%d{yyyy-MM-dd'T'HH:mm:ss.SSSXXX} %-5level %logger{36} - %msg%n"

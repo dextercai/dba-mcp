@@ -1,0 +1,10 @@
+spring:
+  ai:
+    mcp:
+      server:
+        protocol: STREAMABLE
+        streamable-http:
+          mcp-endpoint: /mcp
+server:
+  address: ${DBA_HTTP_ADDRESS:127.0.0.1}
+  port: ${DBA_HTTP_PORT:8080}

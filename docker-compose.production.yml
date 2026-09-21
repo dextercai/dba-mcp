@@ -1,0 +1,40 @@
+services:
+  dba-mcp:
+    image: ${DBA_MCP_IMAGE:?Set DBA_MCP_IMAGE to an immutable image reference}
+    restart: unless-stopped
+    init: true
+    environment:
+      SPRING_PROFILES_ACTIVE: http
+      DBA_HTTP_ADDRESS: 0.0.0.0
+      DBA_HTTP_PORT: "8080"
+      DBA_ASSETS_JDBC_URL: jdbc:sqlite:/data/assets/dba-mcp-assets.db
+      DBA_ASSETS_READ_ONLY: "true"
+      DBA_MCP_API_TOKEN: ${DBA_MCP_API_TOKEN:?Set DBA_MCP_API_TOKEN in the deployment environment}
+      DBA_MCP_ALLOWED_ORIGINS: ${DBA_MCP_ALLOWED_ORIGINS:?Set DBA_MCP_ALLOWED_ORIGINS}
+      DBA_ASSET_ADMIN_USERNAME: ${DBA_ASSET_ADMIN_USERNAME:?Set DBA_ASSET_ADMIN_USERNAME}
+      DBA_ASSET_ADMIN_PASSWORD_HASH: ${DBA_ASSET_ADMIN_PASSWORD_HASH:?Set DBA_ASSET_ADMIN_PASSWORD_HASH}
+      JAVA_TOOL_OPTIONS: ${JAVA_TOOL_OPTIONS:--XX:MaxRAMPercentage=75 -Djava.io.tmpdir=/tmp/dba-mcp}
+    ports:
+      - "${DBA_MCP_BIND_ADDRESS:-127.0.0.1}:${DBA_MCP_HOST_PORT:-8080}:8080"
+    volumes:
+      - type: bind
+        source: ${DBA_MCP_ASSETS_FILE:?Set DBA_MCP_ASSETS_FILE to the production SQLite snapshot}
+        target: /data/assets/dba-mcp-assets.db
+        read_only: true
+      - type: bind
+        source: ${DBA_MCP_KNOWN_HOSTS_FILE:?Set DBA_MCP_KNOWN_HOSTS_FILE}
+        target: /data/known-hosts/known_hosts
+        read_only: true
+      - type: bind
+        source: ${DBA_MCP_AUDIT_DIR:?Set DBA_MCP_AUDIT_DIR}
+        target: /data/audit
+    tmpfs:
+      - /tmp/dba-mcp:rw,noexec,nosuid,size=64m,uid=10001,gid=10001,mode=1770
+    read_only: true
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    pids_limit: 256
+    mem_limit: ${DBA_MCP_MEMORY_LIMIT:-768m}
+    cpus: ${DBA_MCP_CPU_LIMIT:-1.0}
