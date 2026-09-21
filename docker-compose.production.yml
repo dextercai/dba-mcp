@@ -19,19 +19,19 @@ services:
       - "${DBA_MCP_BIND_ADDRESS:-127.0.0.1}:${DBA_MCP_HOST_PORT:-8080}:8080"
     volumes:
       - type: bind
-        source: ${DBA_MCP_CONFIG_DIR:?Set DBA_MCP_CONFIG_DIR to the external Spring configuration directory}
+        source: ${DBA_MCP_HOST_BASE_DIR:?Set DBA_MCP_HOST_BASE_DIR to the host mount root}/config
         target: /config
         read_only: true
       - type: bind
-        source: ${DBA_MCP_ASSETS_FILE:?Set DBA_MCP_ASSETS_FILE to the production SQLite snapshot}
+        source: ${DBA_MCP_HOST_BASE_DIR:?Set DBA_MCP_HOST_BASE_DIR to the host mount root}/assets/dba-mcp-assets.db
         target: /data/assets/dba-mcp-assets.db
         read_only: true
       - type: bind
-        source: ${DBA_MCP_KNOWN_HOSTS_FILE:?Set DBA_MCP_KNOWN_HOSTS_FILE}
+        source: ${DBA_MCP_HOST_BASE_DIR:?Set DBA_MCP_HOST_BASE_DIR to the host mount root}/known-hosts/known_hosts
         target: /data/known-hosts/known_hosts
         read_only: true
       - type: bind
-        source: ${DBA_MCP_AUDIT_DIR:?Set DBA_MCP_AUDIT_DIR}
+        source: ${DBA_MCP_HOST_BASE_DIR:?Set DBA_MCP_HOST_BASE_DIR to the host mount root}/audit
         target: /data/audit
     tmpfs:
       - /tmp/dba-mcp:rw,noexec,nosuid,size=64m,uid=10001,gid=10001,mode=1770

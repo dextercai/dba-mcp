@@ -7,6 +7,30 @@ set -a
 . "$env_file"
 set +a
 
+: "${DBA_MCP_HOST_BASE_DIR:?DBA_MCP_HOST_BASE_DIR must be set}"
+case "$DBA_MCP_HOST_BASE_DIR" in
+  /*) ;;
+  *) echo "DBA_MCP_HOST_BASE_DIR must be an absolute path" >&2; exit 1 ;;
+esac
+config_dir=$DBA_MCP_HOST_BASE_DIR/config
+assets_file=$DBA_MCP_HOST_BASE_DIR/assets/dba-mcp-assets.db
+known_hosts_file=$DBA_MCP_HOST_BASE_DIR/known-hosts/known_hosts
+audit_dir=$DBA_MCP_HOST_BASE_DIR/audit
+if [ ! -d "$config_dir" ] || [ ! -r "$config_dir" ]; then
+  echo "Configuration directory must exist and be readable: $config_dir" >&2
+  exit 1
+fi
+for path in "$assets_file" "$known_hosts_file"; do
+  if [ ! -f "$path" ] || [ ! -r "$path" ]; then
+    echo "Required readable file is missing: $path" >&2
+    exit 1
+  fi
+done
+if [ ! -d "$audit_dir" ] || [ ! -w "$audit_dir" ]; then
+  echo "Audit directory must exist and be writable: $audit_dir" >&2
+  exit 1
+fi
+
 exec docker run --detach --name "${DBA_MCP_CONTAINER_NAME:-dba-mcp}" --restart unless-stopped --init \
   --env-file "$env_file" \
   --env SPRING_PROFILES_ACTIVE=http \
@@ -16,10 +40,10 @@ exec docker run --detach --name "${DBA_MCP_CONTAINER_NAME:-dba-mcp}" --restart u
   --env DBA_ASSETS_READ_ONLY=true \
   --env SPRING_CONFIG_ADDITIONAL_LOCATION=optional:file:/config/ \
   --publish "${DBA_MCP_BIND_ADDRESS:-127.0.0.1}:${DBA_MCP_HOST_PORT:-8080}:8080" \
-  --mount "type=bind,src=$DBA_MCP_CONFIG_DIR,dst=/config,readonly" \
-  --mount "type=bind,src=$DBA_MCP_ASSETS_FILE,dst=/data/assets/dba-mcp-assets.db,readonly" \
-  --mount "type=bind,src=$DBA_MCP_KNOWN_HOSTS_FILE,dst=/data/known-hosts/known_hosts,readonly" \
-  --mount "type=bind,src=$DBA_MCP_AUDIT_DIR,dst=/data/audit" \
+  --mount "type=bind,src=$DBA_MCP_HOST_BASE_DIR/config,dst=/config,readonly" \
+  --mount "type=bind,src=$DBA_MCP_HOST_BASE_DIR/assets/dba-mcp-assets.db,dst=/data/assets/dba-mcp-assets.db,readonly" \
+  --mount "type=bind,src=$DBA_MCP_HOST_BASE_DIR/known-hosts/known_hosts,dst=/data/known-hosts/known_hosts,readonly" \
+  --mount "type=bind,src=$DBA_MCP_HOST_BASE_DIR/audit,dst=/data/audit" \
   --tmpfs /tmp/dba-mcp:rw,noexec,nosuid,size=64m,uid=10001,gid=10001,mode=1770 \
   --read-only --security-opt no-new-privileges:true --cap-drop ALL \
   "$DBA_MCP_IMAGE"

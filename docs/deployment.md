@@ -24,15 +24,15 @@ docker build --tag dba-mcp:local .
 
 部署主机需要 Docker Engine 和 Compose plugin；将 TLS、公开入口、认证前置和速率限制交由反向代理或 API Gateway。Compose 默认只将服务发布至 `127.0.0.1:8080`。
 
-1. 将 `deploy/docker/.env.production.example` 复制到仓库外的受限位置，例如 `/etc/dba-mcp/production.env`，写入实际的镜像 digest、运行时秘密和绝对路径。文件权限应为 `0600`。
-2. 创建 SQLite 只读生产快照和 `known_hosts` 文件。部署服务账号必须可读这两个文件；审计目录必须已存在且对容器 UID `10001` 可写。
+1. 将 `deploy/docker/.env.production.example` 复制到仓库外的受限位置，例如 `/etc/dba-mcp/production.env`，写入实际的镜像 digest、运行时秘密和 `DBA_MCP_HOST_BASE_DIR` 绝对路径。文件权限应为 `0600`。
+2. 在 `DBA_MCP_HOST_BASE_DIR` 下创建固定目录结构：`config/`、`assets/dba-mcp-assets.db`、`known-hosts/known_hosts` 和 `audit/`。部署服务账号必须可读配置目录、SQLite 快照和 `known_hosts`；`audit/` 必须已存在且对容器 UID `10001` 可写。
 3. 执行：
 
    ```sh
    DBA_MCP_ENV_FILE=/etc/dba-mcp/production.env ./deploy/docker/deploy.sh
    ```
 
-`DBA_MCP_CONFIG_DIR` 是部署主机上的非秘密 Spring 配置目录（例如 `application-http.yml`），以只读方式挂载到 `/config`；环境变量优先于该目录中的配置。脚本在启动前验证必要的秘密、配置目录、只读文件和审计目录，随后执行 `docker compose up -d --pull always`。它不会打印环境变量或秘密。应用容器启用了只读根文件系统、全部 Linux capability 移除、`no-new-privileges`、有限 tmpfs、PID/CPU/内存限制；只有配置目录、资产快照、SSH known_hosts 和审计目录可以挂载。
+`DBA_MCP_HOST_BASE_DIR` 是所有宿主机 bind mount 的唯一根目录；其中 `config/` 是非秘密 Spring 配置目录（例如 `application-http.yml`），以只读方式挂载到 `/config`，环境变量优先于其中的配置。脚本在启动前验证必要的秘密、base directory、配置目录、只读文件和审计目录，随后执行 `docker compose up -d --pull always`。它不会打印环境变量或秘密。应用容器启用了只读根文件系统、全部 Linux capability 移除、`no-new-privileges`、有限 tmpfs、PID/CPU/内存限制；只有 base directory 中固定的配置目录、资产快照、SSH known_hosts 和审计目录可以挂载。
 
 ## 单容器启动脚本
 
@@ -42,6 +42,6 @@ docker build --tag dba-mcp:local .
 DBA_MCP_ENV_FILE=/etc/dba-mcp/production.env ./deploy/docker/start-container.sh
 ```
 
-该脚本直接读取环境文件并启动容器。`/config`、资产 SQLite 文件和 `known_hosts` 均为只读；审计目录是唯一的持久化可写挂载。
+该脚本直接读取环境文件并从 `DBA_MCP_HOST_BASE_DIR` 的固定目录结构挂载文件。`/config`、资产 SQLite 文件和 `known_hosts` 均为只读；审计目录是唯一的持久化可写挂载。
 
 部署后通过受控反向代理向 `/mcp` 提供 HTTPS。不要直接把容器端口暴露到公共网络。资产库存 API 使用 Basic Auth，必须仅通过 HTTPS 访问；`DBA_ASSET_ADMIN_PASSWORD_HASH` 必须是 BCrypt 哈希。
