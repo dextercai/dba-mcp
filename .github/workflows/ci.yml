@@ -28,10 +28,7 @@ jobs:
           DBA_MCP_ALLOWED_ORIGINS=https://ci.example.invalid \
           DBA_ASSET_ADMIN_USERNAME=ci-admin \
           DBA_ASSET_ADMIN_PASSWORD_HASH='$$2a$$10$$abcdefghijklmnopqrstuuC6mThbfRzYv8jA7DRu12dv7UClW7i' \
-          DBA_MCP_CONFIG_DIR=/tmp/config \
-          DBA_MCP_ASSETS_FILE=/tmp/assets.db \
-          DBA_MCP_KNOWN_HOSTS_FILE=/tmp/known_hosts \
-          DBA_MCP_AUDIT_DIR=/tmp/audit \
+          DBA_MCP_HOST_BASE_DIR=/tmp/dba-mcp \
           docker compose -f docker-compose.production.yml config --quiet
       - name: Build production image
         uses: docker/build-push-action@v6
