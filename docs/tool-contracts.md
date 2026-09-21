@@ -1,6 +1,6 @@
 # MCP 工具契约（阶段 1–2）
 
-当前暴露只读资产工具及 Oracle 只读连接/查询工具。所有目标以稳定 `assetId` 定位；工具绝不接收地址、用户名、口令、私钥、文件路径或命令正文。
+当前暴露只读资产工具及 Oracle 固定连接/数据字典诊断工具。所有目标以稳定 `assetId` 定位；工具绝不接收地址、用户名、口令、私钥、文件路径、命令正文或任意 SQL。
 
 HTTP Profile 额外提供受 Basic Auth 保护的资产库存 REST API：`/api/v1/assets` 和 `/api/v1/asset-relations`。该 API 不属于 MCP 工具契约，接口定义由 `/v3/api-docs` 和 `/swagger-ui/index.html` 发布；它仅管理登记资产和关系，不提供任意 SQLite SQL 或文件访问。
 
@@ -11,7 +11,6 @@ HTTP Profile 额外提供受 Basic Auth 保护的资产库存 REST API：`/api/v
 | `getAssetTopology` | `assetId`、深度 | 资产与有向关系 | 深度 0–5、至多 200 个节点 |
 | `listRelatedAssets` | `assetId`、关系类型、方向 | 关系列表 | 关系类型为服务端枚举 |
 | `oracle.testDatabaseConnection` | Oracle `assetId` | 数据库产品、版本、认证身份 | 资产必须标记只读 |
-| `oracle.executeReadonlyQuery` | Oracle `assetId`、SQL、行数 | 有界查询结果 | 仅单条 `SELECT`/`WITH`；30 秒、500 行、4 MiB 上限 |
 | `oracle.listDatabaseUsers` | Oracle `assetId` | 用户名、账户状态、`locked`、创建/锁定/过期时间、Profile、认证类型 | 固定 `DBA_USERS` 查询；不接收 SQL 或筛选条件；30 秒、500 行、4 MiB 上限 |
 | `oracle.listSchemas` | Oracle `assetId` | Schema 名称及非敏感账户属性 | 固定 `DBA_USERS` 查询；30 秒、500 行、4 MiB 上限 |
 | `oracle.listTables` | Oracle `assetId`、`owner` | Schema 内的表及基础属性 | `owner` 仅支持未加引号的 Oracle 标识符；固定 `DBA_TABLES` 查询；30 秒、500 行、4 MiB 上限 |

@@ -18,7 +18,7 @@ docker build --tag dba-mcp:local .
 
 镜像使用 Java 21 多阶段构建，运行时仅包含 Spring Boot 可执行 JAR，并以 UID/GID `10001` 的非 root 用户运行。`.dockerignore` 排除了本地 `data/`、Git 元数据、构建产物和生产环境文件，因此资产 SQLite 文件和凭证不会进入镜像。
 
-生产镜像由 GitHub Actions 在 `v*` 标签触发时发布到 GHCR。生产部署必须固定到该镜像的 SHA-256 digest，而非可变标签。
+生产镜像由 GitHub Actions 在 `v*` 标签触发时发布到 `docker.cnb.cool/dextercai/docker/dba_mcp`，同时生成 `latest` 和 UTC 时间戳标签。生产部署必须固定到该镜像的 SHA-256 digest，而非可变标签。
 
 ## Docker Compose 生产部署
 
@@ -32,6 +32,16 @@ docker build --tag dba-mcp:local .
    DBA_MCP_ENV_FILE=/etc/dba-mcp/production.env ./deploy/docker/deploy.sh
    ```
 
-脚本在启动前验证必要的秘密、只读文件和审计目录，随后执行 `docker compose up -d --pull always`。它不会打印环境变量或秘密。应用容器启用了只读根文件系统、全部 Linux capability 移除、`no-new-privileges`、有限 tmpfs、PID/CPU/内存限制；只有资产快照、SSH known_hosts 和审计目录可以挂载。
+`DBA_MCP_CONFIG_DIR` 是部署主机上的非秘密 Spring 配置目录（例如 `application-http.yml`），以只读方式挂载到 `/config`；环境变量优先于该目录中的配置。脚本在启动前验证必要的秘密、配置目录、只读文件和审计目录，随后执行 `docker compose up -d --pull always`。它不会打印环境变量或秘密。应用容器启用了只读根文件系统、全部 Linux capability 移除、`no-new-privileges`、有限 tmpfs、PID/CPU/内存限制；只有配置目录、资产快照、SSH known_hosts 和审计目录可以挂载。
+
+## 单容器启动脚本
+
+不使用 Compose 时，使用同一份环境文件启动：
+
+```sh
+DBA_MCP_ENV_FILE=/etc/dba-mcp/production.env ./deploy/docker/start-container.sh
+```
+
+该脚本直接读取环境文件并启动容器。`/config`、资产 SQLite 文件和 `known_hosts` 均为只读；审计目录是唯一的持久化可写挂载。
 
 部署后通过受控反向代理向 `/mcp` 提供 HTTPS。不要直接把容器端口暴露到公共网络。资产库存 API 使用 Basic Auth，必须仅通过 HTTPS 访问；`DBA_ASSET_ADMIN_PASSWORD_HASH` 必须是 BCrypt 哈希。

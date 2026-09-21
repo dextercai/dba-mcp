@@ -10,7 +10,7 @@ RUN ./mvnw -B -ntp -DskipTests package
 FROM eclipse-temurin:21-jre-jammy AS runtime
 RUN groupadd --gid 10001 dba-mcp \
     && useradd --uid 10001 --gid dba-mcp --no-create-home --shell /usr/sbin/nologin dba-mcp \
-    && mkdir -p /data/assets /data/known-hosts /data/audit /tmp/dba-mcp \
+    && mkdir -p /config /data/assets /data/known-hosts /data/audit /tmp/dba-mcp \
     && chown -R dba-mcp:dba-mcp /data /tmp/dba-mcp
 WORKDIR /app
 COPY --from=build /workspace/target/dba-mcp-*.jar /app/dba-mcp.jar

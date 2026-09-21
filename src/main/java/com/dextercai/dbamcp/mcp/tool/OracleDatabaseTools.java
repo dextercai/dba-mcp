@@ -4,13 +4,11 @@ import com.dextercai.dbamcp.application.database.QueryResult;
 import com.dextercai.dbamcp.application.database.TableDefinition;
 import java.util.Map;
 import org.springframework.ai.tool.annotation.Tool;
-import org.springframework.ai.tool.annotation.ToolParam;
 import org.springframework.stereotype.Component;
 @Component
 public class OracleDatabaseTools {
     private final OracleDatabaseService databases; public OracleDatabaseTools(OracleDatabaseService databases) { this.databases = databases; }
     @Tool(name = "oracle.testDatabaseConnection", description = "Test a registered read-only Oracle database connection using its stable asset ID.") public Map<String, String> testDatabaseConnection(String assetId) { return databases.testConnection(assetId); }
-    @Tool(name = "oracle.executeReadonlyQuery", description = "Run a single read-only SELECT or WITH query on a registered read-only Oracle asset. Results are bounded.") public QueryResult executeReadonlyQuery(String assetId, String sql, @ToolParam(required = false) Integer maxRows) { return databases.query(assetId, sql, maxRows); }
     @Tool(name = "oracle.listDatabaseUsers", description = "List Oracle database users from DBA_USERS on a registered read-only asset. Includes explicit locked status and non-sensitive account metadata; results are bounded.")
     public QueryResult listDatabaseUsers(String assetId) { return databases.listUsers(assetId); }
     @Tool(name = "oracle.listSchemas", description = "List Oracle schemas from DBA_USERS on a registered read-only asset. Includes non-sensitive account metadata; results are bounded.")

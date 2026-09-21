@@ -12,7 +12,7 @@ fi
 set -a
 . "$env_file"
 set +a
-required_values='DBA_MCP_IMAGE DBA_MCP_API_TOKEN DBA_MCP_ALLOWED_ORIGINS DBA_ASSET_ADMIN_USERNAME DBA_ASSET_ADMIN_PASSWORD_HASH DBA_MCP_ASSETS_FILE DBA_MCP_KNOWN_HOSTS_FILE DBA_MCP_AUDIT_DIR'
+required_values='DBA_MCP_IMAGE DBA_MCP_API_TOKEN DBA_MCP_ALLOWED_ORIGINS DBA_ASSET_ADMIN_USERNAME DBA_ASSET_ADMIN_PASSWORD_HASH DBA_MCP_CONFIG_DIR DBA_MCP_ASSETS_FILE DBA_MCP_KNOWN_HOSTS_FILE DBA_MCP_AUDIT_DIR'
 for name in $required_values; do
   eval "value=\${$name:-}"
   if [ -z "$value" ] || printf '%s' "$value" | grep -q 'REPLACE_WITH'; then
@@ -22,6 +22,14 @@ for name in $required_values; do
 done
 if ! printf '%s' "$DBA_MCP_IMAGE" | grep -Eq '^.+@sha256:[[:xdigit:]]{64}$'; then
   echo "DBA_MCP_IMAGE must be pinned to a SHA-256 digest" >&2
+  exit 1
+fi
+case "$DBA_MCP_CONFIG_DIR" in
+  /*) ;;
+  *) echo "DBA_MCP_CONFIG_DIR must be an absolute path" >&2; exit 1 ;;
+esac
+if [ ! -d "$DBA_MCP_CONFIG_DIR" ] || [ ! -r "$DBA_MCP_CONFIG_DIR" ]; then
+  echo "Configuration directory must exist and be readable: $DBA_MCP_CONFIG_DIR" >&2
   exit 1
 fi
 for path in "$DBA_MCP_ASSETS_FILE" "$DBA_MCP_KNOWN_HOSTS_FILE"; do

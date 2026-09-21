@@ -591,7 +591,7 @@ public interface TargetDataSourceRegistry {
 
 ### 12.3 SQL 策略
 
-第一阶段优先提供预定义检查项。通用 SQL 查询需要同时满足：
+第一阶段只提供预定义检查项和固定数据字典查询；不在 MCP 注册通用只读 SQL 查询工具。若未来重新开放通用 SQL 查询，必须同时满足：
 
 - 数据库使用只读账号。
 - 仅允许单条语句。
@@ -694,7 +694,6 @@ OGG 参数文件可能包含账号别名、钱包位置、密钥引用或其他�
 | `oracle.describeTable` | 查询 Oracle 表属性、字段、约束和索引定义 |
 | `list_database_objects` | 查询表、视图、索引等对象 |
 | `describe_database_object` | 查询字段、索引和约束 |
-| `oracle.executeReadonlyQuery` | 执行 Oracle 受控只读 SQL |
 | `run_database_check` | 执行服务端预定义 DBA 检查项 |
 | `explain_sql` | 按方言返回执行计划 |
 | `get_database_status` | 查询基础运行状态 |
@@ -1050,7 +1049,7 @@ MCP Request
 
 ### 阶段 4：查询与 DBA 检查
 
-- 已实现 Oracle 单语句只读 SQL 词法策略。
+- 已实现 Oracle 单语句只读 SQL 词法策略，作为服务端固定查询执行路径的防御性校验；未将通用只读 SQL 查询注册为 MCP 工具。
 - 已将所有已注册 Oracle MCP 工具迁移至 `oracle.` 命名空间。
 - 已实现 Oracle Schema 与 Schema 内表的固定数据字典查询。
 - 已实现 Oracle 查询超时、行数、单元格和响应大小限制。
@@ -1073,8 +1072,8 @@ MCP Request
 
 - 接入认证和目标级 RBAC。
 - 完成审计、指标和链路追踪。
-- 已提供 Java 21 多阶段 Docker 镜像、非 root 运行时、生产 Compose 模板和受检部署脚本；资产快照与 SSH `known_hosts` 仅能以外部只读卷挂载，运行时秘密仅从部署环境注入。
-- 已提供 GitHub Actions：所有 PR、main 推送均执行 Maven 校验、Compose 配置校验和镜像构建；`v*` 标签在校验通过后发布 GHCR 镜像。生产部署必须固定镜像 digest。
+- 已提供 Java 21 多阶段 Docker 镜像、非 root 运行时、生产 Compose 模板及单容器启动脚本；Spring 配置目录、资产快照与 SSH `known_hosts` 仅能以外部只读卷挂载，运行时秘密仅从部署环境注入。
+- 已提供 GitHub Actions：所有 PR、main 推送均执行 Maven 校验、Compose 配置校验和镜像构建；`v*` 标签在校验通过后使用 CNB Docker 凭证发布 `docker.cnb.cool/dextercai/docker/dba_mcp` 镜像的 `latest` 和 UTC 时间戳标签。生产部署必须固定镜像 digest。
 - 完成并发、压力和故障注入测试。
 - 完成依赖漏洞和配置安全检查。
 
@@ -1085,7 +1084,7 @@ MCP Request
 - HTTP 模式启用认证和 Origin 校验。
 - 能从 SQLite 查询资产、关系和主机组件。
 - 能连接三类数据库并执行基础元数据查询。
-- 所有通用 SQL 都受只读、超时、行数和大小限制。
+- 所有数据库固定查询都受只读、超时、行数和大小限制；MCP 不提供通用 SQL 查询入口。
 - SSH 不存在任意命令入口。
 - 配置文件不存在任意路径读取入口。
 - 凭证正文不出现在共享配置、响应和日志中；本地开发 SQLite 凭证文件必须被版本控制排除。

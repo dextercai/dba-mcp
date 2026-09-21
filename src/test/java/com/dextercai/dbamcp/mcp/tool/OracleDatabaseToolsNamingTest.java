@@ -12,7 +12,6 @@ class OracleDatabaseToolsNamingTest {
     void allOracleToolsUseOracleNamespace() {
         Map<String, String> expectedNames = Map.of(
                 "testDatabaseConnection", "oracle.testDatabaseConnection",
-                "executeReadonlyQuery", "oracle.executeReadonlyQuery",
                 "listDatabaseUsers", "oracle.listDatabaseUsers",
                 "listSchemas", "oracle.listSchemas",
                 "listTables", "oracle.listTables",
