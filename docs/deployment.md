@@ -24,8 +24,8 @@ docker build --tag dba-mcp:local .
 
 部署主机需要 Docker Engine 和 Compose plugin；将 TLS、公开入口、认证前置和速率限制交由反向代理或 API Gateway。Compose 默认只将服务发布至 `127.0.0.1:8080`。
 
-1. 将 `deploy/docker/.env.production.example` 复制到仓库外的受限位置，例如 `/etc/dba-mcp/production.env`，写入实际的镜像 digest、运行时秘密和 `DBA_MCP_HOST_BASE_DIR` 绝对路径。文件权限应为 `0600`。
-2. 在 `DBA_MCP_HOST_BASE_DIR` 下创建固定目录结构：`config/`、`assets/`、`known-hosts/known_hosts` 和 `audit/`。`assets/` 内的 `dba-mcp-assets.db` 可预先创建，也可由应用初始化；该目录必须对容器 UID `10001` 可读写。部署服务账号必须可读配置目录和 `known_hosts`；`audit/` 必须已存在且对容器 UID `10001` 可写。
+1. 将 `deploy/docker/.env.production.example` 复制到仓库外的受限位置，例如 `/etc/dba-mcp/production.env`，写入实际的镜像 digest、运行时秘密和 `DBA_MCP_HOST_BASE_DIR` 绝对路径。文件权限应为 `0600`。该文件由部署脚本加载，因此 BCrypt 哈希必须使用单引号，保留其中的 `$`：`DBA_ASSET_ADMIN_PASSWORD_HASH='$2a$10$...'`。
+2. 部署脚本会在 `DBA_MCP_HOST_BASE_DIR` 下自动创建 `config/`、`assets/`、`known-hosts/known_hosts` 和 `audit/`。`assets/dba-mcp-assets.db` 不需要预先创建：应用在可写模式下会创建该 SQLite 文件并执行幂等 schema 初始化。运行部署脚本的账号和容器 UID `10001` 必须能够读写 `assets/` 与 `audit/`，并读取 `config/` 和 `known-hosts/`。
 3. 执行：
 
    ```sh
