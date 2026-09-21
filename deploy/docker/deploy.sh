@@ -33,14 +33,23 @@ if [ ! -d "$DBA_MCP_HOST_BASE_DIR" ]; then
   exit 1
 fi
 config_dir=$DBA_MCP_HOST_BASE_DIR/config
-assets_file=$DBA_MCP_HOST_BASE_DIR/assets/dba-mcp-assets.db
+assets_dir=$DBA_MCP_HOST_BASE_DIR/assets
+assets_file=$assets_dir/dba-mcp-assets.db
 known_hosts_file=$DBA_MCP_HOST_BASE_DIR/known-hosts/known_hosts
 audit_dir=$DBA_MCP_HOST_BASE_DIR/audit
 if [ ! -d "$config_dir" ] || [ ! -r "$config_dir" ]; then
   echo "Configuration directory must exist and be readable: $config_dir" >&2
   exit 1
 fi
-for path in "$assets_file" "$known_hosts_file"; do
+if [ ! -d "$assets_dir" ] || [ ! -r "$assets_dir" ] || [ ! -w "$assets_dir" ]; then
+  echo "Assets directory must exist and be readable and writable: $assets_dir" >&2
+  exit 1
+fi
+if [ -e "$assets_file" ] && { [ ! -f "$assets_file" ] || [ ! -r "$assets_file" ] || [ ! -w "$assets_file" ]; }; then
+  echo "Existing assets database must be a readable and writable regular file: $assets_file" >&2
+  exit 1
+fi
+for path in "$known_hosts_file"; do
   if [ ! -f "$path" ] || [ ! -r "$path" ]; then
     echo "Required readable file is missing: $path" >&2
     exit 1

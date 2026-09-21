@@ -12,15 +12,16 @@ Assets SQLite 是 DBA MCP 的资产库存：保存主机、数据库、OGG、受
 
 ```bash
 DBA_ASSETS_JDBC_URL=jdbc:sqlite:/data/assets/dba-mcp-assets.db
-DBA_ASSETS_READ_ONLY=true
+DBA_ASSETS_READ_ONLY=false
 ```
 
 | 模式 | `DBA_ASSETS_READ_ONLY` | 应用行为 |
 | --- | --- | --- |
 | 本地开发 | `false`（默认） | 自动创建数据库父目录，并在启动时执行 V1 schema 初始化。 |
-| 生产或外部快照 | `true` | 不创建目录、不执行 schema 初始化，也不应修改资产文件。部署前必须已建立 schema。 |
+| 生产资产管理 | `false` | 启动时执行幂等 schema 初始化；资产管理 API 可在经过认证后编辑 inventory。资产目录必须可写，以支持 SQLite 的 journal/WAL 文件。 |
+| 外部快照 | `true` | 不创建目录、不执行 schema 初始化，也不应修改资产文件。部署前必须已建立 schema。 |
 
-生产快照更新应先在独立文件中完成校验，再以原子文件替换方式切换；不要在服务运行期间原地重写文件。资产库应与高频审计数据分离，并仅授予服务账号最小必要的文件权限。
+外部生产快照更新应先在独立文件中完成校验，再以原子文件替换方式切换；不要在服务运行期间原地重写文件。使用内置资产管理 API 的部署则由服务在事务中更新 SQLite。资产库应与高频审计数据分离，并仅授予服务账号最小必要的文件权限。
 
 ## 初始化与查看
 

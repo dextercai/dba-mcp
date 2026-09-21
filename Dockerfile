@@ -20,6 +20,6 @@ ENV SPRING_PROFILES_ACTIVE=http \
     DBA_HTTP_ADDRESS=0.0.0.0 \
     DBA_HTTP_PORT=8080 \
     DBA_ASSETS_JDBC_URL=jdbc:sqlite:/data/assets/dba-mcp-assets.db \
-    DBA_ASSETS_READ_ONLY=true \
+    DBA_ASSETS_READ_ONLY=false \
     JAVA_TOOL_OPTIONS="-XX:MaxRAMPercentage=75 -Djava.io.tmpdir=/tmp/dba-mcp"
 ENTRYPOINT ["java", "-jar", "/app/dba-mcp.jar"]

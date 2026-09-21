@@ -798,7 +798,7 @@ dba:
     provider: sqlite
     sqlite:
       jdbc-url: jdbc:sqlite:/data/dba-mcp-assets.db
-      read-only: true
+      read-only: false # 使用内置资产管理 API 的部署；外部只读快照设为 true
       busy-timeout: 5s
     cache:
       enabled: true
@@ -997,7 +997,7 @@ MCP Request
 /tmp/               有限临时目录
 ```
 
-生产部署通过 `DBA_MCP_HOST_BASE_DIR` 指定上述宿主机挂载项的唯一根目录；配置、资产快照、`known_hosts` 和审计目录必须位于该根目录的固定子路径，避免在部署配置中分别指定任意宿主机路径。
+生产部署通过 `DBA_MCP_HOST_BASE_DIR` 指定上述宿主机挂载项的唯一根目录；配置、资产库存、`known_hosts` 和审计目录必须位于该根目录的固定子路径，避免在部署配置中分别指定任意宿主机路径。使用内置资产管理 API 时，`assets/` 目录是必要的可写挂载，以支持 SQLite 数据库及其 journal/WAL 文件；配置与 `known_hosts` 继续只读。
 
 资产 SQLite 文件应只授予服务账号最小必要权限。
 

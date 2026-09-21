@@ -8,7 +8,7 @@ services:
       DBA_HTTP_ADDRESS: 0.0.0.0
       DBA_HTTP_PORT: "8080"
       DBA_ASSETS_JDBC_URL: jdbc:sqlite:/data/assets/dba-mcp-assets.db
-      DBA_ASSETS_READ_ONLY: "true"
+      DBA_ASSETS_READ_ONLY: "false"
       DBA_MCP_API_TOKEN: ${DBA_MCP_API_TOKEN:?Set DBA_MCP_API_TOKEN in the deployment environment}
       DBA_MCP_ALLOWED_ORIGINS: ${DBA_MCP_ALLOWED_ORIGINS:?Set DBA_MCP_ALLOWED_ORIGINS}
       DBA_ASSET_ADMIN_USERNAME: ${DBA_ASSET_ADMIN_USERNAME:?Set DBA_ASSET_ADMIN_USERNAME}
@@ -23,9 +23,8 @@ services:
         target: /config
         read_only: true
       - type: bind
-        source: ${DBA_MCP_HOST_BASE_DIR:?Set DBA_MCP_HOST_BASE_DIR to the host mount root}/assets/dba-mcp-assets.db
-        target: /data/assets/dba-mcp-assets.db
-        read_only: true
+        source: ${DBA_MCP_HOST_BASE_DIR:?Set DBA_MCP_HOST_BASE_DIR to the host mount root}/assets
+        target: /data/assets
       - type: bind
         source: ${DBA_MCP_HOST_BASE_DIR:?Set DBA_MCP_HOST_BASE_DIR to the host mount root}/known-hosts/known_hosts
         target: /data/known-hosts/known_hosts
