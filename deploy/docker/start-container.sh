@@ -42,11 +42,13 @@ exec docker run --detach --name "${DBA_MCP_CONTAINER_NAME:-dba-mcp}" --restart u
   --env DBA_ASSETS_JDBC_URL=jdbc:sqlite:/data/assets/dba-mcp-assets.db \
   --env DBA_ASSETS_READ_ONLY=false \
   --env SPRING_CONFIG_ADDITIONAL_LOCATION=optional:file:/config/ \
+  --env 'JAVA_TOOL_OPTIONS=-XX:MaxRAMPercentage=75 -Djava.io.tmpdir=/tmp/dba-mcp -Dorg.sqlite.tmpdir=/tmp/sqlite' \
   --publish "${DBA_MCP_BIND_ADDRESS:-127.0.0.1}:${DBA_MCP_HOST_PORT:-8080}:8080" \
   --mount "type=bind,src=$DBA_MCP_HOST_BASE_DIR/config,dst=/config,readonly" \
   --mount "type=bind,src=$DBA_MCP_HOST_BASE_DIR/assets,dst=/data/assets" \
   --mount "type=bind,src=$DBA_MCP_HOST_BASE_DIR/known-hosts/known_hosts,dst=/data/known-hosts/known_hosts,readonly" \
   --mount "type=bind,src=$DBA_MCP_HOST_BASE_DIR/audit,dst=/data/audit" \
   --tmpfs /tmp/dba-mcp:rw,noexec,nosuid,size=64m,uid=10001,gid=10001,mode=1770 \
+  --tmpfs /tmp/sqlite:rw,nosuid,size=16m,uid=10001,gid=10001,mode=1770 \
   --read-only --security-opt no-new-privileges:true --cap-drop ALL \
   "$DBA_MCP_IMAGE"

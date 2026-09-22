@@ -32,7 +32,7 @@ docker build --tag dba-mcp:local .
    DBA_MCP_ENV_FILE=/etc/dba-mcp/production.env ./deploy/docker/deploy.sh
    ```
 
-`DBA_MCP_HOST_BASE_DIR` 是所有宿主机 bind mount 的唯一根目录；其中 `config/` 是非秘密 Spring 配置目录（例如 `application-http.yml`），以只读方式挂载到 `/config`，环境变量优先于其中的配置。`assets/` 以可写方式挂载到 `/data/assets`，仅供已认证的资产管理 API 修改 inventory；其余挂载保持只读或仅限审计写入。脚本在启动前验证必要的秘密、base directory、配置目录、资产目录、`known_hosts` 和审计目录，随后执行 `docker compose up -d --pull always`。它不会打印环境变量或秘密。应用容器启用了只读根文件系统、全部 Linux capability 移除、`no-new-privileges`、有限 tmpfs、PID/CPU/内存限制；只有 base directory 中固定的资产目录和审计目录可写。
+`DBA_MCP_HOST_BASE_DIR` 是所有宿主机 bind mount 的唯一根目录；其中 `config/` 是非秘密 Spring 配置目录（例如 `application-http.yml`），以只读方式挂载到 `/config`，环境变量优先于其中的配置。`assets/` 以可写方式挂载到 `/data/assets`，仅供已认证的资产管理 API 修改 inventory；其余挂载保持只读或仅限审计写入。脚本在启动前验证必要的秘密、base directory、配置目录、资产目录、`known_hosts` 和审计目录，随后执行 `docker compose up -d --pull always`。它不会打印环境变量或秘密。应用容器启用了只读根文件系统、全部 Linux capability 移除、`no-new-privileges`、有限 tmpfs、PID/CPU/内存限制；只有 base directory 中固定的资产目录和审计目录可写。通用 Java 临时目录仍使用 `noexec`；SQLite JDBC 专用的 16 MiB `/tmp/sqlite` tmpfs 允许执行，以加载驱动随 JAR 提供的原生库。
 
 ## 单容器启动脚本
 
