@@ -696,6 +696,9 @@ OGG 参数文件可能包含账号别名、钱包位置、密钥引用或其他�
 | `oracle.listLongRunningTransactions` | 查询 Oracle 打开用户事务的受限会话与 Undo 元数据；不返回事务标识或 SQL 文本 |
 | `oracle.listBlockingSessions` | 查询 Oracle 本实例会话等待/阻塞关系；不返回客户端标识或 SQL 文本，不补全 RAC 远程阻塞方 |
 | `oracle.describeTable` | 查询 Oracle 表属性、字段、约束和索引定义 |
+| `oracle.listConstraints` | 查询指定 Schema 内跨表的约束及约束列；单表详情仍使用 `oracle.describeTable` |
+| `oracle.listIndexes` | 查询指定 Schema 内跨表的索引及索引列；单表详情仍使用 `oracle.describeTable` |
+| `oracle.listAlertLogEvents` | 按 `offset`/`pageSize` 查询当前容器 ADR 告警事件；原始告警消息仅在服务器显式允许敏感信息传递时返回 |
 | `list_database_objects` | 查询表、视图、索引等对象 |
 | `describe_database_object` | 查询字段、索引和约束 |
 | `run_database_check` | 执行服务端预定义 DBA 检查项 |
@@ -830,6 +833,9 @@ dba:
       cache-idle-timeout: 1m
     user-unlock:
       enabled: false # 生产中仅通过 DBA_ORACLE_USER_UNLOCK_ENABLED=true 显式开启
+    alert-log:
+      # 默认不返回 MESSAGE_TEXT；开启后 MCP 响应可能包含敏感信息。
+      allow-sensitive-message-text: false
 
   ssh:
     connect-timeout: 10s
@@ -872,6 +878,8 @@ dba:
 高风险操作即使未来启用，也应单独授权，不继承普通查询权限。
 
 已批准的 `oracle.unlockUser` 是受控例外：它不能继承普通查询权限，且要求运行时开关和资产级 `user_unlock_enabled` 双重授权。工具只接受常规未加引号 Oracle 标识符；解锁前固定查询 `DBA_ROLE_PRIVS`（含角色继承）、`DBA_SYS_PRIVS` 和 `V$PWFILE_USERS`。若发现 DBA、导入导出/目录管理角色、广泛 `ANY` 系统权限、`ALTER USER` 等账户管理权限或任一 password-file 管理权限，或预检无法完成，则拒绝操作。仅当账户处于锁定状态且预检通过时才执行固定 `ALTER USER <validated-identifier> ACCOUNT UNLOCK`。
+
+Oracle 常规只读调用账号采用最小权限：`CREATE SESSION`、`SELECT_CATALOG_ROLE` 与固定诊断查询所需的 `SYS.V_$TEMP_SPACE_HEADER`、`SYS.V_$SESSION`、`SYS.V_$TRANSACTION`、`SYS.V_$DIAG_ALERT_EXT` 直读权限。不得以 `SELECT ANY DICTIONARY` 或 SYSDBA 替代。`oracle.unlockUser` 必须使用独立受控资产/凭证，不得向常规只读账号授予 `ALTER USER` 或 password-file 管理视图权限；完整工具到视图映射在 `tool-contracts.md` 中维护。
 
 ## 19. 审计设计
 
@@ -1069,6 +1077,8 @@ MCP Request
 - 已实现 `oracle.unlockUser` 这一唯一受控数据库写操作：默认关闭，须经运行时和资产级双重启用；只针对锁定账户，并以固定字典查询拒绝 DBA 类角色、广泛系统权限和 password-file 管理权限。数据库详情 schema 已增加 `user_unlock_enabled`，既有 SQLite 库启动时迁移该字段。
 - 已实现 Oracle 固定表空间容量查询，原样返回数据字典中的永久/临时表空间、数据文件及临时空间头部字段，不在服务端计算汇总、空闲量或使用率。
 - 已实现 Oracle 固定表定义查询，使用绑定参数查询表属性、字段、约束和索引，且不返回默认表达式。
+- 已实现 Oracle Schema 级约束和索引清单查询；它们以 Schema 为范围返回跨表库存，避免与单表 `oracle.describeTable` 形成同义接口。
+- 已实现 Oracle 当前容器 ADR 告警事件查询。默认只返回事件元数据；`dba.database.alert-log.allow-sensitive-message-text=true`（或 `DBA_ORACLE_ALERT_LOG_ALLOW_SENSITIVE_MESSAGE_TEXT=true`）是经明确批准的安全边界例外，会在 MCP 响应中返回未经脱敏的 `MESSAGE_TEXT`。该开关必须保持默认关闭，并仅在受控环境启用。
 - 已实现 Oracle 用户会话汇总、长事务和本实例阻塞会话的固定诊断查询；不返回 SQL 文本、客户端标识、操作系统用户或事务标识。阻塞会话工具不使用 `GV$SESSION`，因此不补全 RAC 远程阻塞方。
 - 建立版本化 DBA 检查项目录。
 - 实现脱敏和统一数据库错误分类。

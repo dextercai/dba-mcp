@@ -12,11 +12,11 @@ import org.springframework.stereotype.Service;
 
 @Service
 public class OracleDatabaseService implements AutoCloseable {
-    private static final int MAX_ROWS = 500, MAX_CELL_BYTES = 262_144, MAX_RESULT_BYTES = 4_194_304;
-    private final AssetRepository assets; private final DbaProperties.Hikari hikari; private final DbaProperties.TargetPools targetPools; private final DbaProperties.UserUnlock userUnlock; private final ReadOnlySqlPolicy policy = new ReadOnlySqlPolicy();
+    private static final int MAX_ROWS = 500, DEFAULT_ALERT_LOG_PAGE_SIZE = 100, MAX_CELL_BYTES = 262_144, MAX_RESULT_BYTES = 4_194_304;
+    private final AssetRepository assets; private final DbaProperties.Hikari hikari; private final DbaProperties.TargetPools targetPools; private final DbaProperties.UserUnlock userUnlock; private final DbaProperties.AlertLog alertLog; private final ReadOnlySqlPolicy policy = new ReadOnlySqlPolicy();
     private final BoundedTargetDataSourceRegistry pools;
     public OracleDatabaseService(AssetRepository assets, DbaProperties properties) {
-        this.assets = assets; this.hikari = properties.database().hikari(); this.targetPools = properties.database().targetPools(); this.userUnlock = properties.database().userUnlock();
+        this.assets = assets; this.hikari = properties.database().hikari(); this.targetPools = properties.database().targetPools(); this.userUnlock = properties.database().userUnlock(); this.alertLog = properties.database().alertLog();
         this.pools = new BoundedTargetDataSourceRegistry(targetPools, this::createPool);
     }
     public Map<String, String> testConnection(String assetId) {
@@ -100,6 +100,41 @@ public class OracleDatabaseService implements AutoCloseable {
     public QueryResult listTables(String assetId, String owner) {
         String normalizedOwner = OracleIdentifier.normalize("owner", owner);
         return query(assetId, SchemaCatalog.LIST_TABLES, null, statement -> statement.setString(1, normalizedOwner));
+    }
+    /** Lists constraints across one schema; use describeTable for a single table definition. */
+    public QueryResult listConstraints(String assetId, String owner) {
+        String normalizedOwner = OracleIdentifier.normalize("owner", owner);
+        return query(assetId, OracleMetadataCatalog.LIST_CONSTRAINTS_SQL, null, statement -> statement.setString(1, normalizedOwner));
+    }
+    /** Lists indexes across one schema; use describeTable for a single table definition. */
+    public QueryResult listIndexes(String assetId, String owner) {
+        String normalizedOwner = OracleIdentifier.normalize("owner", owner);
+        return query(assetId, OracleMetadataCatalog.LIST_INDEXES_SQL, null, statement -> statement.setString(1, normalizedOwner));
+    }
+    /** Lists one bounded, offset-based page of current-container ADR alert events. */
+    public QueryResult listAlertLogEvents(String assetId, Integer offset, Integer pageSize) {
+        int normalizedOffset = normalizeAlertLogOffset(offset);
+        int normalizedPageSize = normalizeAlertLogPageSize(pageSize);
+        int upperBound;
+        try {
+            upperBound = Math.addExact(normalizedOffset, Math.addExact(normalizedPageSize, 1));
+        } catch (ArithmeticException e) {
+            throw new IllegalArgumentException("offset is too large");
+        }
+        return query(assetId, alertLog.allowSensitiveMessageText()
+                ? OracleAlertLogCatalog.LIST_EVENTS_WITH_MESSAGE_SQL
+                : OracleAlertLogCatalog.LIST_EVENTS_METADATA_SQL, normalizedPageSize,
+                statement -> { statement.setInt(1, upperBound); statement.setInt(2, normalizedOffset); });
+    }
+    private static int normalizeAlertLogOffset(Integer offset) {
+        int value = offset == null ? 0 : offset;
+        if (value < 0) throw new IllegalArgumentException("offset must be non-negative");
+        return value;
+    }
+    private static int normalizeAlertLogPageSize(Integer pageSize) {
+        int value = pageSize == null ? DEFAULT_ALERT_LOG_PAGE_SIZE : pageSize;
+        if (value < 1 || value > MAX_ROWS) throw new IllegalArgumentException("pageSize must be between 1 and " + MAX_ROWS);
+        return value;
     }
     /** Lists permanent and temporary tablespace capacity through fixed dictionary views. */
     public QueryResult listTablespaceUsage(String assetId) {

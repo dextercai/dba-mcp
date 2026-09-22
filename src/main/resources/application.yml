@@ -46,4 +46,8 @@ dba:
     # This database-changing tool is disabled unless both this switch and the
     # target asset's database_detail.user_unlock_enabled are true.
     user-unlock:
-      enabled: ${DBA_ORACLE_USER_UNLOCK_ENABLED:false}
+      enabled: ${DBA_ORACLE_USER_UNLOCK_ENABLED:true}
+    # Raw alert-log messages may contain credentials, business data, paths, or topology details.
+    # Metadata remains available when this is false.
+    alert-log:
+      allow-sensitive-message-text: ${DBA_ORACLE_ALERT_LOG_ALLOW_SENSITIVE_MESSAGE_TEXT:true}

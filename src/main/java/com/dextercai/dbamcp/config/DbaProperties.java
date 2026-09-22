@@ -8,24 +8,27 @@ public record DbaProperties(Assets assets, Http http, Database database) {
     public DbaProperties {
         assets = assets == null ? new Assets(null) : assets;
         http = http == null ? new Http(null, null, null, null) : http;
-        database = database == null ? new Database(null, null, null) : database;
+        database = database == null ? new Database(null, null, null, null) : database;
     }
     public record Assets(Sqlite sqlite) {
         public Assets { sqlite = sqlite == null ? new Sqlite("jdbc:sqlite:./data/dba-mcp-assets.db", false, Duration.ofSeconds(5)) : sqlite; }
     }
     public record Sqlite(String jdbcUrl, boolean readOnly, Duration busyTimeout) { }
     public record Http(String apiToken, String allowedOrigins, String assetAdminUsername, String assetAdminPasswordHash) { }
-    public record Database(Hikari hikari, TargetPools targetPools, UserUnlock userUnlock) {
+    public record Database(Hikari hikari, TargetPools targetPools, UserUnlock userUnlock, AlertLog alertLog) {
         public Database {
             hikari = hikari == null ? new Hikari(
                     Duration.ofSeconds(30), Duration.ofSeconds(5), Duration.ZERO,
                     Duration.ofMinutes(30), Duration.ofMinutes(10)) : hikari;
             targetPools = targetPools == null ? new TargetPools(128, 1, Duration.ofMinutes(1)) : targetPools;
             userUnlock = userUnlock == null ? new UserUnlock(false) : userUnlock;
+            alertLog = alertLog == null ? new AlertLog(false) : alertLog;
         }
     }
     /** Explicit, fail-closed runtime permission for the dedicated Oracle account-unlock operation. */
     public record UserUnlock(boolean enabled) { }
+    /** Explicit opt-in for forwarding raw alert-log message text, which may contain sensitive data. */
+    public record AlertLog(boolean allowSensitiveMessageText) { }
     /** Bounded cache for short-lived, asset-specific database pools. */
     public record TargetPools(int maximumCachedPools, int maximumPoolSize, Duration cacheIdleTimeout) {
         public TargetPools {
