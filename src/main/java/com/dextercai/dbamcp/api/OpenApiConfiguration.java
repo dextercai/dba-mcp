@@ -12,7 +12,7 @@ import org.springframework.context.annotation.Profile;
 @Profile("http")
 class OpenApiConfiguration {
     @Bean OpenAPI assetManagementOpenApi() {
-        return new OpenAPI().info(new Info().title("DBA MCP Asset Inventory API").version("v1").description("Basic-authenticated API for the registered SQLite asset inventory. Password fields are write-only and never returned."))
+        return new OpenAPI().info(new Info().title("DBA MCP Asset Inventory API").version("v1").description("Basic-authenticated API for the registered SQLite asset inventory. The create and update operations include request examples for database username/password configuration. `detail.connection_properties.password` is write-only and never returned."))
                 .components(new Components().addSecuritySchemes("basicAuth", new SecurityScheme().type(SecurityScheme.Type.HTTP).scheme("basic")));
     }
 }

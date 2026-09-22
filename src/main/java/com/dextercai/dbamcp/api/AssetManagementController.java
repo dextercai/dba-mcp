@@ -6,6 +6,8 @@ import com.dextercai.dbamcp.application.asset.AssetService;
 import com.dextercai.dbamcp.application.asset.AssetNotFoundException;
 import com.dextercai.dbamcp.domain.asset.*;
 import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.media.Content;
+import io.swagger.v3.oas.annotations.media.ExampleObject;
 import io.swagger.v3.oas.annotations.media.Schema;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.security.SecurityRequirement;
@@ -28,10 +30,18 @@ public class AssetManagementController {
     @GetMapping("/assets") @Operation(summary = "List registered assets")
     public AssetPage list(@RequestParam(required = false) AssetType type, @RequestParam(required = false) String environment, @RequestParam(required = false) AssetStatus status, @RequestParam(defaultValue = "0") int offset, @RequestParam(defaultValue = "50") int limit) { return assets.list(new AssetQuery(type, environment, status, Map.of(), offset, limit)); }
     @PostMapping("/assets") @ResponseStatus(HttpStatus.CREATED) @Operation(summary = "Create an asset and optional typed detail")
+    @io.swagger.v3.oas.annotations.parameters.RequestBody(description = "For database assets, `detail.connection_properties.username` and the write-only `password` configure JDBC authentication. Replace the password placeholder before sending; it is never returned.", required = true,
+            content = @Content(examples = @ExampleObject(name = "Oracle asset with JDBC credentials", value = """
+                    {"type":"DATABASE_INSTANCE","code":"oracle-dev-01","displayName":"Oracle development instance","environment":"dev","detail":{"database_type":"ORACLE","host":"oracle-dev.internal","port":1521,"service_name":"ORCLPDB1","read_only":true,"connection_properties":{"username":"dba_mcp_ro","password":"<database-password>"}}}
+                    """)))
     public ManagedAsset create(@RequestBody AssetDraft request) { return management.create(request); }
     @GetMapping("/assets/{assetId}") @Operation(summary = "Get asset and sanitized typed detail")
     public ManagedAsset get(@PathVariable String assetId) { return management.get(new AssetId(assetId)); }
     @PatchMapping("/assets/{assetId}") @Operation(summary = "Update an asset using optimistic locking")
+    @io.swagger.v3.oas.annotations.parameters.RequestBody(description = "Submit the complete asset draft. To rotate a database password, include `detail.connection_properties.username` and the new write-only `password`; the response omits the password.", required = true,
+            content = @Content(examples = @ExampleObject(name = "Rotate Oracle JDBC password", value = """
+                    {"type":"DATABASE_INSTANCE","code":"oracle-dev-01","displayName":"Oracle development instance","environment":"dev","detail":{"database_type":"ORACLE","host":"oracle-dev.internal","port":1521,"service_name":"ORCLPDB1","read_only":true,"connection_properties":{"username":"dba_mcp_ro","password":"<rotated-database-password>"}}}
+                    """)))
     public ManagedAsset update(@PathVariable String assetId, @RequestParam long version, @RequestBody AssetDraft request) { return management.update(new AssetId(assetId), version, request); }
     @DeleteMapping("/assets/{assetId}") @Operation(summary = "Retire an asset without physically deleting it") @ResponseStatus(HttpStatus.NO_CONTENT)
     public void retire(@PathVariable String assetId, @RequestParam long version) { management.retire(new AssetId(assetId), version); }
