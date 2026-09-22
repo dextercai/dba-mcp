@@ -162,7 +162,7 @@ Infrastructure
 - 默认端点为 `/mcp`。
 - 通过 HTTPS 暴露。
 - 端点前启用认证和授权。
-- 校验 `Origin`，避免 DNS rebinding。
+- 默认校验浏览器 `Origin`，避免 DNS rebinding。仅当运行时显式设置 `DBA_MCP_ALLOWED_ORIGINS=*` 时，`/mcp` 接受任意带 `Origin` 的请求；该例外仅适用于受控开发或已有独立边界防护的环境，Bearer token 认证仍为必需。
 - 默认不直接监听公共网络地址。
 - 通过 API Gateway 或反向代理实施限流和 TLS 策略。
 

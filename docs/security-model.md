@@ -1,7 +1,7 @@
 # 安全模型（已实施基线）
 
 - HTTP Profile 仅在 `/mcp` 接受配置的 Bearer token；未配置 token 时端点故障关闭（503）。token 只能由 `DBA_MCP_API_TOKEN` 注入，不能写入配置文件。
-- 浏览器请求带有 `Origin` 时，必须命中 `DBA_MCP_ALLOWED_ORIGINS` 白名单。无 Origin 的非浏览器 MCP 客户端可继续使用认证连接。
+- 浏览器请求带有 `Origin` 时，默认必须命中 `DBA_MCP_ALLOWED_ORIGINS` 白名单。将其显式设为 `*` 可允许任意 Origin，但会移除该 DNS rebinding 防护层；仅能在受控开发环境或已有独立边界防护的环境使用。无 Origin 的非浏览器 MCP 客户端可继续使用认证连接。
 - Oracle 工具只允许登记为只读的资产；SQL 以词法分析限制为单条 `SELECT`/`WITH`，并设置超时、行数、单元格及总响应大小上限。
 - 常规只读 Oracle 调用账号仅授予 `CREATE SESSION`、`SELECT_CATALOG_ROLE` 以及本项目所需的 `SYS.V_$TEMP_SPACE_HEADER`、`SYS.V_$SESSION`、`SYS.V_$TRANSACTION`、`SYS.V_$DIAG_ALERT_EXT` 直读权限；不得以 `SELECT ANY DICTIONARY` 或 SYSDBA 扩大权限。完整工具到视图的映射见 `tool-contracts.md`。
 - `oracle.listAlertLogEvents` 是经批准的敏感信息传递例外。默认只返回 `V$DIAG_ALERT_EXT` 的事件元数据；仅当服务器设置 `DBA_ORACLE_ALERT_LOG_ALLOW_SENSITIVE_MESSAGE_TEXT=true` 时才原样转发 `MESSAGE_TEXT`。该值不可由 MCP 请求控制，且启用后调用方可能收到凭证、业务数据、文件路径或网络拓扑；只能在受控环境、认证传输和访问控制已落实时启用。

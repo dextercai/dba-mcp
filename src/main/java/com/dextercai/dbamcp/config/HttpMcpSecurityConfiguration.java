@@ -56,15 +56,16 @@ class HttpMcpSecurityConfiguration {
     }
 
     private static final class McpBoundaryFilter extends OncePerRequestFilter {
-        private final String token; private final Set<String> origins;
+        private final String token; private final Set<String> origins; private final boolean allowAnyOrigin;
         McpBoundaryFilter(DbaProperties.Http config) {
             token = config.apiToken();
             origins = config.allowedOrigins() == null ? Set.of() : Arrays.stream(config.allowedOrigins().split(",")).map(String::trim).filter(value -> !value.isEmpty()).collect(Collectors.toUnmodifiableSet());
+            allowAnyOrigin = origins.contains("*");
         }
         @Override protected boolean shouldNotFilter(HttpServletRequest request) { return !request.getRequestURI().equals("/mcp"); }
         @Override protected void doFilterInternal(HttpServletRequest request, HttpServletResponse response, FilterChain chain) throws IOException, ServletException {
             String origin = request.getHeader("Origin");
-            if (origin != null && !origins.contains(origin)) { response.sendError(HttpServletResponse.SC_FORBIDDEN, "origin is not allowed"); return; }
+            if (origin != null && !allowAnyOrigin && !origins.contains(origin)) { response.sendError(HttpServletResponse.SC_FORBIDDEN, "origin is not allowed"); return; }
             if (token == null || token.isBlank()) { response.sendError(HttpServletResponse.SC_SERVICE_UNAVAILABLE, "MCP authentication is not configured"); return; }
             String supplied = request.getHeader("Authorization");
             if (!constantTimeEquals("Bearer " + token, supplied)) { response.sendError(HttpServletResponse.SC_UNAUTHORIZED, "authentication required"); return; }

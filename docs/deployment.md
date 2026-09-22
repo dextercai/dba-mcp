@@ -44,4 +44,4 @@ DBA_MCP_ENV_FILE=/etc/dba-mcp/production.env ./deploy/docker/start-container.sh
 
 未设置 `DBA_MCP_ENV_FILE` 时，脚本默认读取其同目录下的 `.env.production`。该脚本以 shell 解析环境文件，并将已解析的 `DBA_*` 与 `SPRING_*` 变量传给容器；不会将原始文件直接传给 `docker run --env-file`，以保证 BCrypt 哈希周围的单引号不会成为容器内变量值的一部分。`/config` 和 `known_hosts` 为只读；资产 SQLite 所在目录与审计目录是持久化可写挂载。
 
-部署后通过受控反向代理向 `/mcp` 提供 HTTPS。不要直接把容器端口暴露到公共网络。资产库存 API 使用 Basic Auth，必须仅通过 HTTPS 访问；`DBA_ASSET_ADMIN_PASSWORD_HASH` 必须是 BCrypt 哈希。
+部署后通过受控反向代理向 `/mcp` 提供 HTTPS。不要直接把容器端口暴露到公共网络。资产库存 API 使用 Basic Auth，必须仅通过 HTTPS 访问；`DBA_ASSET_ADMIN_PASSWORD_HASH` 必须是 BCrypt 哈希。`DBA_MCP_ALLOWED_ORIGINS` 默认应配置为明确的、逗号分隔的来源；仅在受控开发环境或已有独立边界防护时可显式设为 `*`，以允许任意浏览器 Origin。
