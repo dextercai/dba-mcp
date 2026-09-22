@@ -1,6 +1,15 @@
 spring:
   application:
     name: dba-mcp
+  flyway:
+    # Migration is invoked explicitly for the asset data source so read-only
+    # snapshots remain untouched.
+    enabled: false
+    # Existing online asset stores are untracked V1 schemas.  On their first
+    # upgrade Flyway records baseline V1, then applies V2 and later migrations.
+    baseline-on-migrate: true
+    baseline-version: "1"
+    locations: classpath:db/migration
   ai:
     mcp:
       server:
@@ -34,3 +43,7 @@ dba:
       maximum-cached-pools: 128
       maximum-pool-size: 1
       cache-idle-timeout: 1m
+    # This database-changing tool is disabled unless both this switch and the
+    # target asset's database_detail.user_unlock_enabled are true.
+    user-unlock:
+      enabled: ${DBA_ORACLE_USER_UNLOCK_ENABLED:false}

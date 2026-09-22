@@ -31,5 +31,7 @@ class SqliteAssetRepositoryTest {
     private static void runMigration(DataSource source) throws Exception {
         String script = new ClassPathResource("db/migration/V1__asset_schema.sql").getContentAsString(StandardCharsets.UTF_8);
         try (Connection connection = source.getConnection(); Statement statement = connection.createStatement()) { for (String sql : script.split(";\\s*(?:\\r?\\n|$)")) if (!sql.isBlank()) statement.execute(sql); }
+        script = new ClassPathResource("db/migration/V2__oracle_user_unlock.sql").getContentAsString(StandardCharsets.UTF_8);
+        try (Connection connection = source.getConnection(); Statement statement = connection.createStatement()) { for (String sql : script.split(";\\s*(?:\\r?\\n|$)")) if (!sql.isBlank()) statement.execute(sql); }
     }
 }

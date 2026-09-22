@@ -17,18 +17,19 @@ DBA_ASSETS_READ_ONLY=false
 
 | 模式 | `DBA_ASSETS_READ_ONLY` | 应用行为 |
 | --- | --- | --- |
-| 本地开发 | `false`（默认） | 自动创建数据库父目录，并在启动时执行 V1 schema 初始化。 |
-| 生产资产管理 | `false` | 启动时执行幂等 schema 初始化；资产管理 API 可在经过认证后编辑 inventory。资产目录必须可写，以支持 SQLite 的 journal/WAL 文件。 |
-| 外部快照 | `true` | 不创建目录、不执行 schema 初始化，也不应修改资产文件。部署前必须已建立 schema。 |
+| 本地开发 | `false`（默认） | 自动创建数据库父目录，并由 Flyway 执行所有未应用迁移。 |
+| 生产资产管理 | `false` | 启动时由 Flyway 校验并执行未应用迁移；资产管理 API 可在经过认证后编辑 inventory。资产目录必须可写，以支持 SQLite 的 journal/WAL 文件。 |
+| 外部快照 | `true` | 不创建目录，也不应修改资产文件；应将 Flyway 迁移在独立可写副本上完成后再原子替换。 |
 
 外部生产快照更新应先在独立文件中完成校验，再以原子文件替换方式切换；不要在服务运行期间原地重写文件。使用内置资产管理 API 的部署则由服务在事务中更新 SQLite。资产库应与高频审计数据分离，并仅授予服务账号最小必要的文件权限。
 
 ## 初始化与查看
 
-可写的本地默认库会在应用启动时初始化。也可以使用项目中的迁移脚本手动建立一个空库：
+可写的本地默认库会在应用启动时由 Flyway 初始化。`flyway_schema_history` 记录已应用版本、校验和与结果；不得手工编辑该表。也可以按版本顺序使用项目中的迁移脚本手动建立一个空库：
 
 ```bash
 sqlite3 ./data/dba-mcp-assets.db < src/main/resources/db/migration/V1__asset_schema.sql
+sqlite3 ./data/dba-mcp-assets.db < src/main/resources/db/migration/V2__oracle_user_unlock.sql
 ```
 
 查看已建立的表和索引：
@@ -117,7 +118,11 @@ WHERE a.id = :asset_id;
 - 含有数据库密码的 SQLite 文件必须被版本控制排除，采用最小文件权限、加密（如可用）、运行时主密钥、轮换和日志脱敏措施；不得复制到镜像或非必要环境。
 - 优先将资产标记为 `RETIRED` 或 `DISABLED`，不要直接物理删除，以保留关系和审计可追溯性。
 - 修改前应备份并验证新文件；外部生成的快照必须以只读模式提供给应用。
-- 本文描述的 schema 当前对应 `src/main/resources/db/migration/V1__asset_schema.sql`。修改 schema、资产类型、关系约束或安全边界时，必须同步更新本文件和 `docs/architecture-plan.md`。
+- 本文描述的 schema 当前对应 `V1__asset_schema.sql` 与 `V2__oracle_user_unlock.sql`。修改 schema、资产类型、关系约束或安全边界时，必须新增顺序版本迁移（不得修改已发布迁移），并同步更新本文件和 `docs/architecture-plan.md`。
+
+### 已部署 V1 库升级
+
+线上已部署库只有 V1 schema 且没有 `flyway_schema_history` 时，应用首次以可写模式启动会按 `baseline-on-migrate=true` 创建历史表并记录基线版本 `1`，随后执行 V2；不会重放 V1 或重建现有表。升级前仍应备份 SQLite 文件，并在副本上先验证迁移。若使用外部只读快照，必须在独立可写副本中运行同一版本应用完成迁移，再原子替换快照。
 
 ## 管理 API
 

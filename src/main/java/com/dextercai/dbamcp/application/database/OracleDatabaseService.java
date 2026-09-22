@@ -13,10 +13,10 @@ import org.springframework.stereotype.Service;
 @Service
 public class OracleDatabaseService implements AutoCloseable {
     private static final int MAX_ROWS = 500, MAX_CELL_BYTES = 262_144, MAX_RESULT_BYTES = 4_194_304;
-    private final AssetRepository assets; private final DbaProperties.Hikari hikari; private final DbaProperties.TargetPools targetPools; private final ReadOnlySqlPolicy policy = new ReadOnlySqlPolicy();
+    private final AssetRepository assets; private final DbaProperties.Hikari hikari; private final DbaProperties.TargetPools targetPools; private final DbaProperties.UserUnlock userUnlock; private final ReadOnlySqlPolicy policy = new ReadOnlySqlPolicy();
     private final BoundedTargetDataSourceRegistry pools;
     public OracleDatabaseService(AssetRepository assets, DbaProperties properties) {
-        this.assets = assets; this.hikari = properties.database().hikari(); this.targetPools = properties.database().targetPools();
+        this.assets = assets; this.hikari = properties.database().hikari(); this.targetPools = properties.database().targetPools(); this.userUnlock = properties.database().userUnlock();
         this.pools = new BoundedTargetDataSourceRegistry(targetPools, this::createPool);
     }
     public Map<String, String> testConnection(String assetId) {
@@ -48,6 +48,49 @@ public class OracleDatabaseService implements AutoCloseable {
     /** Lists Oracle accounts through a fixed, bounded DBA_USERS query. */
     public QueryResult listUsers(String assetId) {
         return query(assetId, DatabaseUserCatalog.LIST_USERS_SQL, null);
+    }
+    /** Unlocks one conventional Oracle account only after a fail-closed high-privilege preflight. */
+    public OracleUserUnlockResult unlockUser(String assetId, String username) {
+        String normalizedUsername = OracleIdentifier.normalize("username", username);
+        DatabaseDetail detail = databaseDetail(new AssetId(assetId));
+        if (!userUnlock.enabled() || !detail.userUnlockEnabled()) {
+            throw new DatabaseOperationException("Oracle user unlock is not enabled for this target");
+        }
+        try (Connection connection = directConnection(detail)) {
+            String previousStatus = accountStatus(connection, normalizedUsername);
+            if (!previousStatus.contains("LOCKED")) return new OracleUserUnlockResult(normalizedUsername, previousStatus, previousStatus);
+            if (!highPrivileges(connection, normalizedUsername).isEmpty()) {
+                throw new DatabaseOperationException("unlock is denied for a high-privilege account");
+            }
+            try (Statement statement = connection.createStatement()) {
+                statement.setQueryTimeout(30);
+                statement.execute("ALTER USER " + normalizedUsername + " ACCOUNT UNLOCK");
+            }
+            return new OracleUserUnlockResult(normalizedUsername, previousStatus, accountStatus(connection, normalizedUsername));
+        } catch (DatabaseOperationException e) { throw e; }
+        catch (SQLException e) { throw new DatabaseOperationException("Oracle user unlock preflight or execution failed", e); }
+    }
+    private static String accountStatus(Connection connection, String username) throws SQLException {
+        try (PreparedStatement statement = connection.prepareStatement(OracleUserUnlockCatalog.ACCOUNT_STATUS_SQL)) {
+            statement.setQueryTimeout(30); statement.setString(1, username);
+            try (ResultSet result = statement.executeQuery()) {
+                if (!result.next()) throw new DatabaseOperationException("Oracle user was not found");
+                return result.getString(1);
+            }
+        }
+    }
+    private static Set<String> highPrivileges(Connection connection, String username) throws SQLException {
+        try (PreparedStatement statement = connection.prepareStatement(OracleUserUnlockCatalog.HIGH_PRIVILEGES_SQL)) {
+            statement.setQueryTimeout(30); statement.setString(1, username); statement.setString(2, username); statement.setString(3, username);
+            try (ResultSet result = statement.executeQuery()) {
+                Set<String> found = new LinkedHashSet<>();
+                while (result.next()) {
+                    String type = result.getString(1); String privilege = result.getString(2);
+                    if (OracleUserUnlockPolicy.denies(type, privilege)) found.add(type + ":" + privilege);
+                }
+                return found;
+            }
+        }
     }
     /** Lists Oracle user-backed schemas through a fixed, bounded DBA_USERS query. */
     public QueryResult listSchemas(String assetId) {
@@ -127,7 +170,9 @@ public class OracleDatabaseService implements AutoCloseable {
     private static Integer integer(ResultSet result, int index) throws SQLException { int value = result.getInt(index); return result.wasNull() ? null : value; }
     @FunctionalInterface private interface StatementBinder { void bind(PreparedStatement statement) throws SQLException; }
     private Connection directConnection(AssetId id) throws SQLException {
-        DatabaseDetail detail = databaseDetail(id);
+        return directConnection(databaseDetail(id));
+    }
+    private Connection directConnection(DatabaseDetail detail) throws SQLException {
         Properties properties = new Properties();
         detail.connectionProperties().forEach((key, value) -> { if (!key.equals("jdbcUrl")) properties.setProperty(key, value); });
         String url = jdbcUrl(detail);

@@ -12,6 +12,7 @@ HTTP Profile 额外提供受 Basic Auth 保护的资产库存 REST API：`/api/v
 | `listRelatedAssets` | `assetId`、关系类型、方向 | 关系列表 | 关系类型为服务端枚举 |
 | `oracle.testDatabaseConnection` | Oracle `assetId` | 数据库产品、版本、认证身份 | 资产必须标记只读 |
 | `oracle.listDatabaseUsers` | Oracle `assetId` | 用户名、账户状态、`locked`、创建/锁定/过期时间、Profile、认证类型 | 固定 `DBA_USERS` 查询；不接收 SQL 或筛选条件；30 秒、500 行、4 MiB 上限 |
+| `oracle.unlockUser` | Oracle `assetId`、`username` | 用户名、解锁前后账户状态 | 受控变更工具：运行时开关和资产 `user_unlock_enabled` 均须显式启用；用户名仅支持未加引号 Oracle 标识符；先检查 `DBA_ROLE_PRIVS`、`DBA_SYS_PRIVS` 与 `V$PWFILE_USERS`，命中 DBA 类角色、广泛 `ANY` 系统权限、`ALTER USER` 等管理权限或 password-file 管理权限即拒绝；30 秒超时 |
 | `oracle.listSchemas` | Oracle `assetId` | Schema 名称及非敏感账户属性 | 固定 `DBA_USERS` 查询；30 秒、500 行、4 MiB 上限 |
 | `oracle.listTables` | Oracle `assetId`、`owner` | Schema 内的表及基础属性 | `owner` 仅支持未加引号的 Oracle 标识符；固定 `DBA_TABLES` 查询；30 秒、500 行、4 MiB 上限 |
 | `oracle.listTablespaceUsage` | Oracle `assetId` | 表空间及数据文件的原始容量字段；临时表空间的原始已用/空闲字段 | 固定数据字典查询；不计算汇总、空闲量或使用率；不接收 SQL 或筛选条件；30 秒、500 行、4 MiB 上限 |
@@ -27,6 +28,8 @@ HTTP Profile 额外提供受 Basic Auth 保护的资产库存 REST API：`/api/v
 Oracle 工具统一使用 `oracle.` 前缀；此前未加前缀的工具名不再注册。`oracle.listDatabaseUsers` 不返回密码散列、密码版本、外部认证细节或最近登录时间。`locked` 由 `ACCOUNT_STATUS` 是否包含 `LOCKED` 推导，因此同时覆盖人工锁定和定时锁定等 Oracle 状态。
 
 `oracle.listTablespaceUsage` 不进行任何容量计算或汇总。每行由 `source_view` 标识来源：`DBA_TABLESPACE_USAGE_METRICS` 的 `TABLESPACE_SIZE`、`USED_SPACE`、`USED_PERCENT` 和 `BLOCK_SIZE` 原样返回；`DBA_DATA_FILES`/`DBA_TEMP_FILES` 的 `BYTES`、`MAXBYTES`、`AUTOEXTENSIBLE` 原样返回；`V$TEMP_SPACE_HEADER` 的 `BYTES_USED`、`BYTES_FREE`、`CON_ID` 原样返回。调用账号需要具备这些数据字典视图的只读权限。
+
+`oracle.unlockUser` 是当前唯一的数据库变更 MCP 工具，不是通用 DDL 入口。默认关闭；除 `DBA_ORACLE_USER_UNLOCK_ENABLED=true` 外，目标资产的 `database_detail.user_unlock_enabled` 还必须为 `1`。工具只对当前已锁定用户执行 `ALTER USER <已验证标识符> ACCOUNT UNLOCK`，并在执行前以固定、绑定参数查询检查角色继承链、直接系统权限和 password-file 管理权限。预检所需目录视图不可读、预检超时或失败时一律拒绝解锁。
 
 `oracle.describeTable` 查询 `DBA_TABLES`、`DBA_TAB_COLS`、`DBA_COL_COMMENTS`、`DBA_CONSTRAINTS`、`DBA_CONS_COLUMNS`、`DBA_INDEXES` 与 `DBA_IND_COLUMNS`。为避免返回潜在敏感默认表达式，不返回 `DATA_DEFAULT`。
 

@@ -1,5 +1,6 @@
 package com.dextercai.dbamcp.mcp.tool;
 import com.dextercai.dbamcp.application.database.OracleDatabaseService;
+import com.dextercai.dbamcp.application.database.OracleUserUnlockResult;
 import com.dextercai.dbamcp.application.database.QueryResult;
 import com.dextercai.dbamcp.application.database.TableDefinition;
 import java.util.Map;
@@ -11,6 +12,8 @@ public class OracleDatabaseTools {
     @Tool(name = "oracle.testDatabaseConnection", description = "Test a registered read-only Oracle database connection using its stable asset ID.") public Map<String, String> testDatabaseConnection(String assetId) { return databases.testConnection(assetId); }
     @Tool(name = "oracle.listDatabaseUsers", description = "List Oracle database users from DBA_USERS on a registered read-only asset. Includes explicit locked status and non-sensitive account metadata; results are bounded.")
     public QueryResult listDatabaseUsers(String assetId) { return databases.listUsers(assetId); }
+    @Tool(name = "oracle.unlockUser", description = "Unlock one registered Oracle account only when the runtime and target asset explicitly enable it. The account must be a conventional unquoted identifier and is denied if it has DBA-like roles, broad system privileges, or password-file administrative privileges.")
+    public OracleUserUnlockResult unlockUser(String assetId, String username) { return databases.unlockUser(assetId, username); }
     @Tool(name = "oracle.listSchemas", description = "List Oracle schemas from DBA_USERS on a registered read-only asset. Includes non-sensitive account metadata; results are bounded.")
     public QueryResult listSchemas(String assetId) { return databases.listSchemas(assetId); }
     @Tool(name = "oracle.listTables", description = "List tables in one Oracle schema on a registered read-only asset. Owner must be an unquoted Oracle identifier; results are bounded.")

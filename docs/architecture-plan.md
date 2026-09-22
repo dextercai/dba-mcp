@@ -2,7 +2,7 @@
 
 > 状态：阶段 1–2 实施中
 >
-> 更新日期：2026-09-21
+> 更新日期：2026-09-22
 >
 > 适用范围：Oracle、OceanBase（Oracle 模式）、达梦数据库和受控 SSH 主机操作
 
@@ -71,7 +71,7 @@
 
 ### 4.4 安全默认值
 
-- 数据库账号默认只读。
+- 数据库账号默认只读；唯一已批准的例外是显式启用且受高权限账户预检保护的 Oracle 用户解锁操作。
 - 工具默认拒绝高风险操作。
 - SSH 只允许固定动作 ID。
 - 文件只允许读取已登记的配置资源。
@@ -387,6 +387,7 @@ CREATE TABLE database_detail (
     connection_properties TEXT NOT NULL DEFAULT '{}',
     credential_ref        TEXT NOT NULL,
     read_only             INTEGER NOT NULL DEFAULT 1,
+    user_unlock_enabled   INTEGER NOT NULL DEFAULT 0,
 
     FOREIGN KEY (asset_id) REFERENCES asset(id)
 );
@@ -399,6 +400,8 @@ CREATE TABLE database_detail (
 - `DAMENG`
 
 共享和生产环境中，连接属性默认只保存非敏感驱动属性，令牌、SSH 私钥和钱包密钥仍必须使用 `credential_ref`。经 Basic Auth 认证并获资产管理员授权的库存管理接口，可将数据库密码写入 `connection_properties.password`，以支持受控本地资产维护；该字段必须是只写字段，绝不能出现在 REST/MCP 响应、日志、审计参数或错误信息中。SQLite 文件因此属于敏感凭证存储，必须限制为服务账号可读写、禁止提交或打包进镜像，并优先采用加密、运行时主密钥和定期轮换。
+
+`user_unlock_enabled` 默认为 `0`，只用于授权已登记 Oracle 目标上的专用 `oracle.unlockUser` 操作；它不能开启通用 DDL。该操作还需要服务端运行时开关 `DBA_ORACLE_USER_UNLOCK_ENABLED=true`。执行凭证必须只授予完成该动作所需的最小权限（`ALTER USER` 以及预检需要的 `DBA_USERS`、`DBA_ROLE_PRIVS`、`DBA_SYS_PRIVS`、`V$PWFILE_USERS` 只读访问），并应与常规只读查询凭证隔离；当前本地 SQLite 凭证实现部署时应采用独立的受控资产或后续 Secret Provider 来实现该隔离。
 
 ### 10.5 OGG 部署详情
 
@@ -687,6 +690,7 @@ OGG 参数文件可能包含账号别名、钱包位置、密钥引用或其他�
 | `oracle.listSchemas` | 查询 Oracle Schema |
 | `oracle.listTables` | 查询指定 Oracle Schema 内的表 |
 | `oracle.listDatabaseUsers` | 查询 Oracle 数据库用户及锁定状态；仅返回非敏感账户属性 |
+| `oracle.unlockUser` | 仅解锁普通 Oracle 用户；运行时和目标资产双重显式启用，并拒绝 DBA 类及其他高权限用户 |
 | `oracle.listTablespaceUsage` | 查询 Oracle 永久和临时表空间的原始容量字段，不在服务端计算汇总或使用率 |
 | `oracle.getSessionSummary` | 按数据库用户和会话状态查询 Oracle 用户会话汇总；不返回客户端标识、操作系统用户或 SQL 文本 |
 | `oracle.listLongRunningTransactions` | 查询 Oracle 打开用户事务的受限会话与 Undo 元数据；不返回事务标识或 SQL 文本 |
@@ -824,6 +828,8 @@ dba:
       maximum-cached-pools: 128
       maximum-pool-size: 1
       cache-idle-timeout: 1m
+    user-unlock:
+      enabled: false # 生产中仅通过 DBA_ORACLE_USER_UNLOCK_ENABLED=true 显式开启
 
   ssh:
     connect-timeout: 10s
@@ -864,6 +870,8 @@ dba:
 ```
 
 高风险操作即使未来启用，也应单独授权，不继承普通查询权限。
+
+已批准的 `oracle.unlockUser` 是受控例外：它不能继承普通查询权限，且要求运行时开关和资产级 `user_unlock_enabled` 双重授权。工具只接受常规未加引号 Oracle 标识符；解锁前固定查询 `DBA_ROLE_PRIVS`（含角色继承）、`DBA_SYS_PRIVS` 和 `V$PWFILE_USERS`。若发现 DBA、导入导出/目录管理角色、广泛 `ANY` 系统权限、`ALTER USER` 等账户管理权限或任一 password-file 管理权限，或预检无法完成，则拒绝操作。仅当账户处于锁定状态且预检通过时才执行固定 `ALTER USER <validated-identifier> ACCOUNT UNLOCK`。
 
 ## 19. 审计设计
 
@@ -1036,7 +1044,7 @@ MCP Request
 ### 阶段 2：资产模块
 
 - 已实现资产、关系、查询分页等领域模型及自关联防护。
-- 已建立 SQLite 初始版本 schema（节点、关系和所有规划的类型化详情表）；可写本地开发库在启动时初始化，生产只读快照不执行写入。
+- 已使用 Flyway `flyway_schema_history` 管理 SQLite schema。既有未追踪的线上 V1 库首次升级时基线标记为 V1，再应用后续迁移；可写本地开发库自动迁移，生产只读快照不执行写入。
 - 已实现 `SqliteAssetRepository`。
 - 已实现资产列表、详情、关联和有界拓扑 MCP 工具。
 - 已实现 HTTP Basic Auth 保护的资产库存 REST CRUD、关系 CRUD、乐观锁逻辑删除/恢复和 OpenAPI/Swagger UI 文档；数据库密码为只写字段。
@@ -1058,6 +1066,7 @@ MCP Request
 - 已实现 Oracle Schema 与 Schema 内表的固定数据字典查询。
 - 已实现 Oracle 查询超时、行数、单元格和响应大小限制。
 - 已实现 Oracle 固定 `DBA_USERS` 用户目录查询，提供显式锁定状态且不返回密码相关或最近登录信息。
+- 已实现 `oracle.unlockUser` 这一唯一受控数据库写操作：默认关闭，须经运行时和资产级双重启用；只针对锁定账户，并以固定字典查询拒绝 DBA 类角色、广泛系统权限和 password-file 管理权限。数据库详情 schema 已增加 `user_unlock_enabled`，既有 SQLite 库启动时迁移该字段。
 - 已实现 Oracle 固定表空间容量查询，原样返回数据字典中的永久/临时表空间、数据文件及临时空间头部字段，不在服务端计算汇总、空闲量或使用率。
 - 已实现 Oracle 固定表定义查询，使用绑定参数查询表属性、字段、约束和索引，且不返回默认表达式。
 - 已实现 Oracle 用户会话汇总、长事务和本实例阻塞会话的固定诊断查询；不返回 SQL 文本、客户端标识、操作系统用户或事务标识。阻塞会话工具不使用 `GV$SESSION`，因此不补全 RAC 远程阻塞方。

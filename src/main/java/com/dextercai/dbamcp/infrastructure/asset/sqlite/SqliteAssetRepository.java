@@ -61,7 +61,7 @@ public class SqliteAssetRepository implements AssetRepository {
         try (Connection c = dataSource.getConnection(); PreparedStatement s = c.prepareStatement(sql)) {
             s.setString(1, id.value()); try (ResultSet rs = s.executeQuery()) {
                 if (!rs.next()) return Optional.empty();
-                return Optional.of(new DatabaseDetail(id, DatabaseType.valueOf(rs.getString("database_type")), rs.getString("host"), rs.getInt("port"), rs.getString("service_name"), rs.getString("credential_ref"), rs.getInt("read_only") == 1, read(rs.getString("connection_properties"), STRING_MAP)));
+                return Optional.of(new DatabaseDetail(id, DatabaseType.valueOf(rs.getString("database_type")), rs.getString("host"), rs.getInt("port"), rs.getString("service_name"), rs.getString("credential_ref"), rs.getInt("read_only") == 1, rs.getInt("user_unlock_enabled") == 1, read(rs.getString("connection_properties"), STRING_MAP)));
             }
         } catch (SQLException e) { throw new AssetStoreException("database detail lookup failed", e); }
     }
@@ -138,7 +138,7 @@ public class SqliteAssetRepository implements AssetRepository {
     private static String detailTable(AssetType type) { return switch (type) { case HOST -> "host_detail"; case DATABASE_INSTANCE, DATABASE_SERVICE -> "database_detail"; case OGG_DEPLOYMENT -> "ogg_deployment_detail"; case OGG_PROCESS -> "ogg_process_detail"; case CONFIG_RESOURCE -> "config_resource_detail"; default -> null; }; }
     private static String[] detailColumns(AssetType type) { return switch (type) {
         case HOST -> new String[]{"hostname","management_ip","ssh_port","os_type","os_version","architecture","ssh_credential_ref","bastion_asset_id"};
-        case DATABASE_INSTANCE, DATABASE_SERVICE -> new String[]{"database_type","database_version","role","host","port","service_name","database_name","tenant_name","cluster_name","connection_properties","credential_ref","read_only"};
+        case DATABASE_INSTANCE, DATABASE_SERVICE -> new String[]{"database_type","database_version","role","host","port","service_name","database_name","tenant_name","cluster_name","connection_properties","credential_ref","read_only","user_unlock_enabled"};
         case OGG_DEPLOYMENT -> new String[]{"ogg_version","deployment_mode","install_home","deployment_home","service_manager_port","admin_server_port","credential_ref"};
         case OGG_PROCESS -> new String[]{"process_type","process_name","parameter_file","report_file","trail_name","enabled"};
         case CONFIG_RESOURCE -> new String[]{"resource_type","logical_name","absolute_path","charset","readable","writable","sensitive","max_read_bytes","masking_policy"}; default -> new String[0]; }; }

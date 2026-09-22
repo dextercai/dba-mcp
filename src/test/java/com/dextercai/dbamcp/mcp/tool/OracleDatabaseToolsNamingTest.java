@@ -13,6 +13,7 @@ class OracleDatabaseToolsNamingTest {
         Map<String, String> expectedNames = Map.of(
                 "testDatabaseConnection", "oracle.testDatabaseConnection",
                 "listDatabaseUsers", "oracle.listDatabaseUsers",
+                "unlockUser", "oracle.unlockUser",
                 "listSchemas", "oracle.listSchemas",
                 "listTables", "oracle.listTables",
                 "listTablespaceUsage", "oracle.listTablespaceUsage",
