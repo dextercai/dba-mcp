@@ -14,7 +14,7 @@ services:
       DBA_ASSET_ADMIN_USERNAME: ${DBA_ASSET_ADMIN_USERNAME:?Set DBA_ASSET_ADMIN_USERNAME}
       DBA_ASSET_ADMIN_PASSWORD_HASH: ${DBA_ASSET_ADMIN_PASSWORD_HASH:?Set DBA_ASSET_ADMIN_PASSWORD_HASH}
       SPRING_CONFIG_ADDITIONAL_LOCATION: optional:file:/config/
-      JAVA_TOOL_OPTIONS: "${JAVA_TOOL_OPTIONS:--XX:MaxRAMPercentage=75 -Djava.io.tmpdir=/tmp/dba-mcp} -Dorg.sqlite.tmpdir=/tmp/sqlite"
+      JAVA_TOOL_OPTIONS: "${JAVA_TOOL_OPTIONS:--XX:MaxRAMPercentage=75 -Djava.io.tmpdir=/tmp/dba-mcp} -Dorg.sqlite.lib.path=/opt/sqlite -Dorg.sqlite.lib.name=libsqlitejdbc.so"
     ports:
       - "${DBA_MCP_BIND_ADDRESS:-127.0.0.1}:${DBA_MCP_HOST_PORT:-8080}:8080"
     volumes:
@@ -34,7 +34,6 @@ services:
         target: /data/audit
     tmpfs:
       - /tmp/dba-mcp:rw,noexec,nosuid,size=64m,uid=10001,gid=10001,mode=1770
-      - /tmp/sqlite:rw,nosuid,size=16m,uid=10001,gid=10001,mode=1770
     read_only: true
     security_opt:
       - no-new-privileges:true
