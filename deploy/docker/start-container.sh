@@ -12,6 +12,16 @@ set -a
 . "$env_file"
 set +a
 
+# docker run --env-file does not parse shell quotes. Passing the original
+# environment file would include the single quotes required around a BCrypt
+# hash and make every Basic Auth password comparison fail. Pass the names of
+# the shell-parsed deployment variables instead, so Docker inherits literal
+# values without putting secrets on the command line.
+set --
+for name in $(env | sed -n 's/^\([A-Za-z_][A-Za-z0-9_]*\)=.*/\1/p' | grep -E '^(DBA_|SPRING_)'); do
+  set -- "$@" --env "$name"
+done
+
 : "${DBA_MCP_HOST_BASE_DIR:?DBA_MCP_HOST_BASE_DIR must be set}"
 case "$DBA_MCP_HOST_BASE_DIR" in
   /*) ;;
@@ -52,7 +62,7 @@ fi
 
 exec docker run --detach --name "${DBA_MCP_CONTAINER_NAME:-dba-mcp}" --restart unless-stopped --init \
   --user "$DBA_MCP_CONTAINER_UID:$DBA_MCP_CONTAINER_GID" \
-  --env-file "$env_file" \
+  "$@" \
   --env SPRING_PROFILES_ACTIVE=http \
   --env DBA_HTTP_ADDRESS=0.0.0.0 \
   --env DBA_HTTP_PORT=8080 \
