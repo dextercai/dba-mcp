@@ -17,6 +17,19 @@ case "$DBA_MCP_HOST_BASE_DIR" in
   /*) ;;
   *) echo "DBA_MCP_HOST_BASE_DIR must be an absolute path" >&2; exit 1 ;;
 esac
+host_uid=$(id -u)
+host_gid=$(id -g)
+if [ -z "${DBA_MCP_CONTAINER_UID:-}" ]; then
+  DBA_MCP_CONTAINER_UID=$host_uid
+  [ "$host_uid" -eq 0 ] && DBA_MCP_CONTAINER_UID=10001
+fi
+if [ -z "${DBA_MCP_CONTAINER_GID:-}" ]; then
+  DBA_MCP_CONTAINER_GID=$host_gid
+  [ "$host_uid" -eq 0 ] && DBA_MCP_CONTAINER_GID=10001
+fi
+case "$DBA_MCP_CONTAINER_UID:$DBA_MCP_CONTAINER_GID" in
+  *[!0-9:]*|:*|*:|0:*) echo "DBA_MCP_CONTAINER_UID and DBA_MCP_CONTAINER_GID must be non-root numeric IDs" >&2; exit 1 ;;
+esac
 config_dir=$DBA_MCP_HOST_BASE_DIR/config
 assets_dir=$DBA_MCP_HOST_BASE_DIR/assets
 assets_file=$assets_dir/dba-mcp-assets.db
@@ -25,6 +38,9 @@ audit_dir=$DBA_MCP_HOST_BASE_DIR/audit
 umask 077
 mkdir -p "$config_dir" "$assets_dir" "$(dirname "$known_hosts_file")" "$audit_dir"
 [ -e "$known_hosts_file" ] || : > "$known_hosts_file"
+if [ "$host_uid" -eq 0 ]; then
+  chown -R "$DBA_MCP_CONTAINER_UID:$DBA_MCP_CONTAINER_GID" "$config_dir" "$assets_dir" "$(dirname "$known_hosts_file")" "$audit_dir"
+fi
 if [ -e "$assets_file" ] && { [ ! -f "$assets_file" ] || [ ! -r "$assets_file" ] || [ ! -w "$assets_file" ]; }; then
   echo "Existing assets database must be a readable and writable regular file: $assets_file" >&2
   exit 1
@@ -35,6 +51,7 @@ if [ ! -r "$config_dir" ] || [ ! -r "$known_hosts_file" ] || [ ! -w "$assets_dir
 fi
 
 exec docker run --detach --name "${DBA_MCP_CONTAINER_NAME:-dba-mcp}" --restart unless-stopped --init \
+  --user "$DBA_MCP_CONTAINER_UID:$DBA_MCP_CONTAINER_GID" \
   --env-file "$env_file" \
   --env SPRING_PROFILES_ACTIVE=http \
   --env DBA_HTTP_ADDRESS=0.0.0.0 \
@@ -48,6 +65,6 @@ exec docker run --detach --name "${DBA_MCP_CONTAINER_NAME:-dba-mcp}" --restart u
   --mount "type=bind,src=$DBA_MCP_HOST_BASE_DIR/assets,dst=/data/assets" \
   --mount "type=bind,src=$DBA_MCP_HOST_BASE_DIR/known-hosts/known_hosts,dst=/data/known-hosts/known_hosts,readonly" \
   --mount "type=bind,src=$DBA_MCP_HOST_BASE_DIR/audit,dst=/data/audit" \
-  --tmpfs /tmp/dba-mcp:rw,noexec,nosuid,size=64m,uid=10001,gid=10001,mode=1770 \
+  --tmpfs "/tmp/dba-mcp:rw,noexec,nosuid,size=64m,uid=$DBA_MCP_CONTAINER_UID,gid=$DBA_MCP_CONTAINER_GID,mode=1770" \
   --read-only --security-opt no-new-privileges:true --cap-drop ALL \
   "$DBA_MCP_IMAGE"

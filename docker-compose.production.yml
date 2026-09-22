@@ -3,6 +3,7 @@ services:
     image: ${DBA_MCP_IMAGE:?Set DBA_MCP_IMAGE to an immutable image reference}
     restart: unless-stopped
     init: true
+    user: "${DBA_MCP_CONTAINER_UID:-10001}:${DBA_MCP_CONTAINER_GID:-10001}"
     environment:
       SPRING_PROFILES_ACTIVE: http
       DBA_HTTP_ADDRESS: 0.0.0.0
@@ -33,7 +34,7 @@ services:
         source: ${DBA_MCP_HOST_BASE_DIR:?Set DBA_MCP_HOST_BASE_DIR to the host mount root}/audit
         target: /data/audit
     tmpfs:
-      - /tmp/dba-mcp:rw,noexec,nosuid,size=64m,uid=10001,gid=10001,mode=1770
+      - /tmp/dba-mcp:rw,noexec,nosuid,size=64m,uid=${DBA_MCP_CONTAINER_UID:-10001},gid=${DBA_MCP_CONTAINER_GID:-10001},mode=1770
     read_only: true
     security_opt:
       - no-new-privileges:true
