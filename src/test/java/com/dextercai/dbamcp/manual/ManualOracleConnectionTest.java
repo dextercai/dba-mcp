@@ -21,14 +21,17 @@ public final class ManualOracleConnectionTest {
     }
 
     public static void main(String[] args) throws Exception {
-//        Console console = System.console();
-//        if (console == null) {
-//            throw new IllegalStateException("Run this diagnostic from an interactive terminal so the password is not echoed.");
-//        }
+        Console console = System.console();
+        if (console == null) {
+            throw new IllegalStateException("Run this diagnostic from an interactive terminal so the password is not echoed.");
+        }
 
-        String jdbcUrl = "jdbc:oracle:thin:@//10.0.4.107:1521/orclpdb"; // required(console, "JDBC URL: ");
-        String username = "mcp_ro"; // required(console, "Username: ");
-        char[] password = "cwz2021".toCharArray(); // console.readPassword("Password: ");
+        String jdbcUrl = required(console, "JDBC URL: ");
+        String username = required(console, "Username: ");
+        char[] password = console.readPassword("Password: ");
+        if (password == null || password.length == 0) {
+            throw new IllegalArgumentException("A password is required.");
+        }
 
         Properties properties = new Properties();
         properties.setProperty("username", username);

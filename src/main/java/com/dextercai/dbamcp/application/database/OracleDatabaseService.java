@@ -52,7 +52,7 @@ public class OracleDatabaseService implements AutoCloseable {
     /** Unlocks one conventional Oracle account only after a fail-closed high-privilege preflight. */
     public OracleUserUnlockResult unlockUser(String assetId, String username) {
         String normalizedUsername = OracleIdentifier.normalize("username", username);
-        DatabaseDetail detail = databaseDetail(new AssetId(assetId));
+        DatabaseDetail detail = userUnlockDatabaseDetail(new AssetId(assetId));
         if (!userUnlock.enabled() || !detail.userUnlockEnabled()) {
             throw new DatabaseOperationException("Oracle user unlock is not enabled for this target");
         }
@@ -205,36 +205,40 @@ public class OracleDatabaseService implements AutoCloseable {
     private static Integer integer(ResultSet result, int index) throws SQLException { int value = result.getInt(index); return result.wasNull() ? null : value; }
     @FunctionalInterface private interface StatementBinder { void bind(PreparedStatement statement) throws SQLException; }
     private Connection directConnection(AssetId id) throws SQLException {
-        return directConnection(databaseDetail(id));
+        return directConnection(nonMutatingToolDatabaseDetail(id));
     }
     private Connection directConnection(DatabaseDetail detail) throws SQLException {
-        Properties properties = new Properties();
-        detail.connectionProperties().forEach((key, value) -> { if (!key.equals("jdbcUrl")) properties.setProperty(key, value); });
-        String url = jdbcUrl(detail);
-        return DriverManager.getConnection(url, properties);
+        OracleConnectionSettings settings = OracleConnectionSettings.from(detail);
+        Properties properties = settings.driverProperties();
+        if (settings.username() != null) properties.setProperty("user", settings.username());
+        if (settings.password() != null) properties.setProperty("password", settings.password());
+        return DriverManager.getConnection(settings.jdbcUrl(), properties);
     }
     private HikariDataSource createPool(AssetId id) {
-        DatabaseDetail detail = databaseDetail(id);
-        String url = jdbcUrl(detail);
-        HikariConfig config = new HikariConfig(); config.setJdbcUrl(url); config.setMaximumPoolSize(targetPools.maximumPoolSize()); config.setMinimumIdle(0);
+        DatabaseDetail detail = nonMutatingToolDatabaseDetail(id);
+        OracleConnectionSettings settings = OracleConnectionSettings.from(detail);
+        HikariConfig config = new HikariConfig(); config.setJdbcUrl(settings.jdbcUrl()); config.setMaximumPoolSize(targetPools.maximumPoolSize()); config.setMinimumIdle(0);
         config.setConnectionTimeout(hikari.connectionTimeout().toMillis());
         config.setValidationTimeout(hikari.validationTimeout().toMillis());
         if (!hikari.keepaliveTime().isZero()) config.setKeepaliveTime(hikari.keepaliveTime().toMillis());
         config.setMaxLifetime(hikari.maxLifetime().toMillis());
         config.setIdleTimeout(hikari.idleTimeout().toMillis());
         config.setPoolName("oracle-" + id.value());
-        String username = detail.connectionProperties().get("username"); String password = detail.connectionProperties().get("password");
-        if (username != null) config.setUsername(username);
-        if (password != null) config.setPassword(password);
-        detail.connectionProperties().forEach((key, value) -> { if (!key.equals("jdbcUrl") && !key.equals("username") && !key.equals("password")) config.addDataSourceProperty(key, value); });
+        if (settings.username() != null) config.setUsername(settings.username());
+        if (settings.password() != null) config.setPassword(settings.password());
+        settings.driverProperties().forEach((key, value) -> config.addDataSourceProperty(String.valueOf(key), value));
         return new HikariDataSource(config);
     }
-    private DatabaseDetail databaseDetail(AssetId id) {
+    private DatabaseDetail nonMutatingToolDatabaseDetail(AssetId id) {
         DatabaseDetail detail = assets.findDatabaseDetail(id).orElseThrow(() -> new DatabaseOperationException("database detail not found"));
-        if (detail.type() != DatabaseType.ORACLE || !detail.readOnly()) throw new DatabaseOperationException("only read-only Oracle assets are enabled");
+        OracleTargetPolicy.requireNonMutatingToolTarget(detail);
         return detail;
     }
-    private static String jdbcUrl(DatabaseDetail detail) { return detail.connectionProperties().getOrDefault("jdbcUrl", "jdbc:oracle:thin:@//" + detail.host() + ":" + detail.port() + "/" + detail.serviceName()); }
+    private DatabaseDetail userUnlockDatabaseDetail(AssetId id) {
+        DatabaseDetail detail = assets.findDatabaseDetail(id).orElseThrow(() -> new DatabaseOperationException("database detail not found"));
+        OracleTargetPolicy.requireUserUnlockTarget(detail);
+        return detail;
+    }
     @Override public void close() { pools.close(); }
     public static class DatabaseOperationException extends RuntimeException { public DatabaseOperationException(String message) { super(message); } public DatabaseOperationException(String message, Exception cause) { super(message, cause); } }
 }

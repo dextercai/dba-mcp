@@ -126,6 +126,7 @@ public class SqliteAssetRepository implements AssetRepository {
         Map<String, Object> values = new LinkedHashMap<>(detail); values.remove("asset_id");
         if (type == AssetType.DATABASE_INSTANCE || type == AssetType.DATABASE_SERVICE) {
             values.putIfAbsent("credential_ref", "inline-password"); values.putIfAbsent("connection_properties", Map.of()); values.putIfAbsent("read_only", 1);
+            preservePasswordWhenOmitted(c, id, values);
         }
         String[] allowed = detailColumns(type); values.keySet().removeIf(key -> !Arrays.asList(allowed).contains(key));
         if (values.isEmpty()) return;
@@ -134,6 +135,29 @@ public class SqliteAssetRepository implements AssetRepository {
         String updates = String.join(",", values.keySet().stream().map(key -> key + "=excluded." + key).toList());
         String sql = "INSERT INTO " + table + " (" + String.join(",", columns) + ") VALUES (" + placeholders + ") ON CONFLICT(asset_id) DO UPDATE SET " + updates;
         try (PreparedStatement s = c.prepareStatement(sql)) { s.setString(1, id.value()); int i = 2; for (Object value : values.values()) s.setObject(i++, serialize(value)); s.executeUpdate(); }
+    }
+    @SuppressWarnings("unchecked")
+    private void preservePasswordWhenOmitted(Connection connection, AssetId id, Map<String, Object> values) throws SQLException {
+        Object supplied = values.get("connection_properties");
+        if (!(supplied instanceof Map<?, ?> suppliedProperties)) {
+            throw new IllegalArgumentException("connection_properties must be an object");
+        }
+        Map<String, Object> merged = new LinkedHashMap<>();
+        suppliedProperties.forEach((key, value) -> merged.put(String.valueOf(key), value));
+        if (!merged.containsKey("password") || merged.get("password") == null) {
+            existingPassword(connection, id).ifPresent(password -> merged.put("password", password));
+        }
+        values.put("connection_properties", merged);
+    }
+    private Optional<String> existingPassword(Connection connection, AssetId id) throws SQLException {
+        try (PreparedStatement statement = connection.prepareStatement("SELECT connection_properties FROM database_detail WHERE asset_id = ?")) {
+            statement.setString(1, id.value());
+            try (ResultSet result = statement.executeQuery()) {
+                if (!result.next()) return Optional.empty();
+                Object password = read(result.getString(1), OBJECT_MAP).get("password");
+                return password == null ? Optional.empty() : Optional.of(String.valueOf(password));
+            }
+        }
     }
     private static String detailTable(AssetType type) { return switch (type) { case HOST -> "host_detail"; case DATABASE_INSTANCE, DATABASE_SERVICE -> "database_detail"; case OGG_DEPLOYMENT -> "ogg_deployment_detail"; case OGG_PROCESS -> "ogg_process_detail"; case CONFIG_RESOURCE -> "config_resource_detail"; default -> null; }; }
     private static String[] detailColumns(AssetType type) { return switch (type) {

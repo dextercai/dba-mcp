@@ -30,18 +30,28 @@ public class AssetManagementController {
     @GetMapping("/assets") @Operation(summary = "List registered assets")
     public AssetPage list(@RequestParam(required = false) AssetType type, @RequestParam(required = false) String environment, @RequestParam(required = false) AssetStatus status, @RequestParam(defaultValue = "0") int offset, @RequestParam(defaultValue = "50") int limit) { return assets.list(new AssetQuery(type, environment, status, Map.of(), offset, limit)); }
     @PostMapping("/assets") @ResponseStatus(HttpStatus.CREATED) @Operation(summary = "Create an asset and optional typed detail")
-    @io.swagger.v3.oas.annotations.parameters.RequestBody(description = "For database assets, `detail.connection_properties.username` and the write-only `password` configure JDBC authentication. Replace the password placeholder before sending; it is never returned.", required = true,
-            content = @Content(examples = @ExampleObject(name = "Oracle asset with JDBC credentials", value = """
-                    {"type":"DATABASE_INSTANCE","code":"oracle-dev-01","displayName":"Oracle development instance","environment":"dev","detail":{"database_type":"ORACLE","host":"oracle-dev.internal","port":1521,"service_name":"ORCLPDB1","read_only":true,"connection_properties":{"username":"dba_mcp_ro","password":"<database-password>"}}}
-                    """)))
+    @io.swagger.v3.oas.annotations.parameters.RequestBody(description = "For database assets, optional `detail.connection_properties.jdbcUrl` is the Oracle Thin endpoint only; `username` and write-only `password` configure JDBC authentication separately. Replace the password placeholder before sending; it is never returned. `user_unlock_enabled=true` requires `read_only=false` and the `DBA_ORACLE_USER_UNLOCK_ENABLED=true` runtime switch.", required = true,
+            content = @Content(examples = {
+                    @ExampleObject(name = "Oracle asset with JDBC credentials", value = """
+                            {"type":"DATABASE_INSTANCE","code":"oracle-dev-01","displayName":"Oracle development instance","environment":"dev","detail":{"database_type":"ORACLE","host":"oracle-dev.internal","port":1521,"service_name":"ORCLPDB1","read_only":true,"connection_properties":{"jdbcUrl":"jdbc:oracle:thin:@//oracle-dev.internal:1521/ORCLPDB1","username":"dba_mcp_ro","password":"<database-password>"}}}
+                            """),
+                    @ExampleObject(name = "Dedicated Oracle user-unlock asset", value = """
+                            {"type":"DATABASE_INSTANCE","code":"oracle-user-unlock-01","displayName":"Oracle account unlock target","environment":"prod","detail":{"database_type":"ORACLE","host":"oracle-admin.internal","port":1521,"service_name":"ORCLPDB1","read_only":false,"user_unlock_enabled":true,"connection_properties":{"username":"dba_mcp_unlock","password":"<controlled-unlock-password>"}}}
+                            """)
+            }))
     public ManagedAsset create(@RequestBody AssetDraft request) { return management.create(request); }
     @GetMapping("/assets/{assetId}") @Operation(summary = "Get asset and sanitized typed detail")
     public ManagedAsset get(@PathVariable String assetId) { return management.get(new AssetId(assetId)); }
     @PatchMapping("/assets/{assetId}") @Operation(summary = "Update an asset using optimistic locking")
-    @io.swagger.v3.oas.annotations.parameters.RequestBody(description = "Submit the complete asset draft. To rotate a database password, include `detail.connection_properties.username` and the new write-only `password`; the response omits the password.", required = true,
-            content = @Content(examples = @ExampleObject(name = "Rotate Oracle JDBC password", value = """
-                    {"type":"DATABASE_INSTANCE","code":"oracle-dev-01","displayName":"Oracle development instance","environment":"dev","detail":{"database_type":"ORACLE","host":"oracle-dev.internal","port":1521,"service_name":"ORCLPDB1","read_only":true,"connection_properties":{"username":"dba_mcp_ro","password":"<rotated-database-password>"}}}
-                    """)))
+    @io.swagger.v3.oas.annotations.parameters.RequestBody(description = "Submit the complete asset draft. Omitting `detail.connection_properties.password` preserves its existing value; include a new password to rotate it. To enable `oracle.unlockUser`, set `read_only=false` and `user_unlock_enabled=true`; the runtime switch is also required. The response always omits the password.", required = true,
+            content = @Content(examples = {
+                    @ExampleObject(name = "Rotate Oracle JDBC password", value = """
+                            {"type":"DATABASE_INSTANCE","code":"oracle-dev-01","displayName":"Oracle development instance","environment":"dev","detail":{"database_type":"ORACLE","host":"oracle-dev.internal","port":1521,"service_name":"ORCLPDB1","read_only":true,"connection_properties":{"jdbcUrl":"jdbc:oracle:thin:@//oracle-dev.internal:1521/ORCLPDB1","username":"dba_mcp_ro","password":"<rotated-database-password>"}}}
+                            """),
+                    @ExampleObject(name = "Enable dedicated Oracle user-unlock target", value = """
+                            {"type":"DATABASE_INSTANCE","code":"oracle-user-unlock-01","displayName":"Oracle account unlock target","environment":"prod","detail":{"database_type":"ORACLE","host":"oracle-admin.internal","port":1521,"service_name":"ORCLPDB1","read_only":false,"user_unlock_enabled":true,"connection_properties":{"username":"dba_mcp_unlock"}}}
+                            """)
+            }))
     public ManagedAsset update(@PathVariable String assetId, @RequestParam long version, @RequestBody AssetDraft request) { return management.update(new AssetId(assetId), version, request); }
     @DeleteMapping("/assets/{assetId}") @Operation(summary = "Retire an asset without physically deleting it") @ResponseStatus(HttpStatus.NO_CONTENT)
     public void retire(@PathVariable String assetId, @RequestParam long version) { management.retire(new AssetId(assetId), version); }

@@ -399,9 +399,9 @@ CREATE TABLE database_detail (
 - `OCEANBASE_ORACLE`
 - `DAMENG`
 
-共享和生产环境中，连接属性默认只保存非敏感驱动属性，令牌、SSH 私钥和钱包密钥仍必须使用 `credential_ref`。经 Basic Auth 认证并获资产管理员授权的库存管理接口，可将数据库密码写入 `connection_properties.password`，以支持受控本地资产维护；该字段必须是只写字段，绝不能出现在 REST/MCP 响应、日志、审计参数或错误信息中。SQLite 文件因此属于敏感凭证存储，必须限制为服务账号可读写、禁止提交或打包进镜像，并优先采用加密、运行时主密钥和定期轮换。
+共享和生产环境中，连接属性默认只保存非敏感驱动属性，令牌、SSH 私钥和钱包密钥仍必须使用 `credential_ref`。`connection_properties.jdbcUrl` 是可选的、不得包含凭据的 Oracle Thin 端点；未设置时统一由 `host`、`port` 和 `service_name` 构造。用户名和密码仅使用独立的 `connection_properties.username` / `password`，一次性连接和连接池必须采用同一规则。经 Basic Auth 认证并获资产管理员授权的库存管理接口，可将数据库密码写入 `connection_properties.password`，以支持受控本地资产维护；该字段必须是只写字段，`PATCH` 中省略或传递 `null` 必须保留现有密码，绝不能出现在 REST/MCP 响应、日志、审计参数或错误信息中。SQLite 文件因此属于敏感凭证存储，必须限制为服务账号可读写、禁止提交或打包进镜像，并优先采用加密、运行时主密钥和定期轮换。
 
-`user_unlock_enabled` 默认为 `0`，只用于授权已登记 Oracle 目标上的专用 `oracle.unlockUser` 操作；它不能开启通用 DDL。该操作还需要服务端运行时开关 `DBA_ORACLE_USER_UNLOCK_ENABLED=true`。执行凭证必须只授予完成该动作所需的最小权限（`ALTER USER` 以及预检需要的 `DBA_USERS`、`DBA_ROLE_PRIVS`、`DBA_SYS_PRIVS`、`V$PWFILE_USERS` 只读访问），并应与常规只读查询凭证隔离；当前本地 SQLite 凭证实现部署时应采用独立的受控资产或后续 Secret Provider 来实现该隔离。
+`user_unlock_enabled` 默认为 `0`，只用于授权已登记 Oracle 目标上的专用 `oracle.unlockUser` 操作；它不能开启通用 DDL。所有资产均可执行非变更 MCP 工具；`read_only=true` 只禁止变更 MCP 工具，因此 `oracle.unlockUser` 必须使用 `read_only=false` 的独立受控资产。该操作还需要服务端运行时开关 `DBA_ORACLE_USER_UNLOCK_ENABLED=true`。执行凭证必须只授予完成该动作所需的最小权限（`ALTER USER` 以及预检需要的 `DBA_USERS`、`DBA_ROLE_PRIVS`、`DBA_SYS_PRIVS`、`V$PWFILE_USERS` 只读访问），并应与常规只读查询凭证隔离；当前本地 SQLite 凭证实现部署时应采用独立的受控资产或后续 Secret Provider 来实现该隔离。
 
 ### 10.5 OGG 部署详情
 
@@ -754,7 +754,7 @@ HTTP Profile 提供 `/api/v1/**` 的受控资产库存管理面。它只操作�
 | `GET` / `POST` | `/api/v1/assets/{assetId}/relations` | 查询或创建该资产的出向关系。 |
 | `PATCH` / `DELETE` | `/api/v1/asset-relations/{relationId}` | 更新关系属性或删除关系。 |
 
-数据库详情的 `connection_properties.password` 仅能经 `POST` 或 `PATCH` 写入；`GET`、所有 MCP 工具、日志、审计参数、错误和 OpenAPI 示例均不得返回该字段。OpenAPI JSON 位于 `/v3/api-docs`，Swagger UI 位于 `/swagger-ui/index.html`。
+数据库详情的 `connection_properties.password` 仅能经 `POST` 或 `PATCH` 写入；`PATCH` 省略该字段或传递 `null` 时必须保留已有密码。可选 `connection_properties.jdbcUrl` 只能保存不含凭据的 Oracle Thin 端点，认证统一由独立的 `username` / `password` 提供。`GET`、所有 MCP 工具、日志、审计参数、错误和 OpenAPI 示例均不得返回密码字段。OpenAPI JSON 位于 `/v3/api-docs`，Swagger UI 位于 `/swagger-ui/index.html`。
 
 ## 16. 统一返回和错误模型
 
@@ -877,9 +877,9 @@ dba:
 
 高风险操作即使未来启用，也应单独授权，不继承普通查询权限。
 
-已批准的 `oracle.unlockUser` 是受控例外：它不能继承普通查询权限，且要求运行时开关和资产级 `user_unlock_enabled` 双重授权。工具只接受常规未加引号 Oracle 标识符；解锁前固定查询 `DBA_ROLE_PRIVS`（含角色继承）、`DBA_SYS_PRIVS` 和 `V$PWFILE_USERS`。若发现 DBA、导入导出/目录管理角色、广泛 `ANY` 系统权限、`ALTER USER` 等账户管理权限或任一 password-file 管理权限，或预检无法完成，则拒绝操作。仅当账户处于锁定状态且预检通过时才执行固定 `ALTER USER <validated-identifier> ACCOUNT UNLOCK`。
+已批准的 `oracle.unlockUser` 是受控例外：它不能继承普通查询权限，且要求 `read_only=false`、运行时开关和资产级 `user_unlock_enabled` 三重授权。工具只接受常规未加引号 Oracle 标识符；解锁前固定查询 `DBA_ROLE_PRIVS`（含角色继承）、`DBA_SYS_PRIVS` 和 `V$PWFILE_USERS`。若发现 DBA、导入导出/目录管理角色、广泛 `ANY` 系统权限、`ALTER USER` 等账户管理权限或任一 password-file 管理权限，或预检无法完成，则拒绝操作。仅当账户处于锁定状态且预检通过时才执行固定 `ALTER USER <validated-identifier> ACCOUNT UNLOCK`。
 
-Oracle 常规只读调用账号采用最小权限：`CREATE SESSION`、`SELECT_CATALOG_ROLE` 与固定诊断查询所需的 `SYS.V_$TEMP_SPACE_HEADER`、`SYS.V_$SESSION`、`SYS.V_$TRANSACTION`、`SYS.V_$DIAG_ALERT_EXT` 直读权限。不得以 `SELECT ANY DICTIONARY` 或 SYSDBA 替代。`oracle.unlockUser` 必须使用独立受控资产/凭证，不得向常规只读账号授予 `ALTER USER` 或 password-file 管理视图权限；完整工具到视图映射在 `tool-contracts.md` 中维护。
+Oracle 常规只读调用账号采用最小权限：`CREATE SESSION`、`SELECT_CATALOG_ROLE` 与固定诊断查询所需的 `SYS.V_$TEMP_SPACE_HEADER`、`SYS.V_$SESSION`、`SYS.V_$TRANSACTION`、`SYS.V_$DIAG_ALERT_EXT` 直读权限。不得以 `SELECT ANY DICTIONARY` 或 SYSDBA 替代。`oracle.unlockUser` 必须使用 `read_only=false` 的独立受控资产/凭证，不得向常规只读账号授予 `ALTER USER` 或 password-file 管理视图权限；完整工具到视图映射在 `tool-contracts.md` 中维护。
 
 ## 19. 审计设计
 

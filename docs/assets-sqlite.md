@@ -128,11 +128,11 @@ WHERE a.id = :asset_id;
 
 HTTP Profile 通过 Basic Auth 提供资产和关系的 CRUD：`/api/v1/assets` 与 `/api/v1/asset-relations`。删除资产会将其标记为 `RETIRED`，不会物理删除；更新和状态变更必须传递当前 `version`，以使用乐观锁。
 
-数据库详情使用 `detail` 对象中的 SQLite 列名，例如 `database_type`、`host`、`port` 和 `connection_properties`。`connection_properties.password` 可写但不会回显。完整的机器可读契约访问 `/v3/api-docs`，交互文档访问 `/swagger-ui/index.html`。
+数据库详情使用 `detail` 对象中的 SQLite 列名，例如 `database_type`、`host`、`port` 和 `connection_properties`。`connection_properties.jdbcUrl` 是可选的 Oracle Thin **端点**；未配置时由 `host`、`port` 和 `service_name` 构造。认证只使用同一对象中的 `username` 和 `password`（不接受别名 `user`），不得把用户名或密码嵌入 JDBC URL。`connection_properties.password` 可写但不会回显；`PATCH` 中省略该字段（或传递 `null`）会保留已有密码。完整的机器可读契约访问 `/v3/api-docs`，交互文档访问 `/swagger-ui/index.html`。
 
 ### 配置数据库用户名和密码示例
 
-以下示例创建一个 Oracle 数据库资产，并在 `connection_properties` 中配置 JDBC 用户名和密码。`DBA_ASSET_ADMIN_USERNAME` / `DBA_ASSET_ADMIN_PASSWORD_HASH` 配置的是**资产管理 API 的 Basic Auth 管理员**；JSON 中的 `connection_properties.username` / `password` 才是数据库连接凭据，二者不要混用。
+以下示例创建一个 Oracle 数据库资产，并在 `connection_properties` 中分别配置 JDBC 端点、用户名和密码。`DBA_ASSET_ADMIN_USERNAME` / `DBA_ASSET_ADMIN_PASSWORD_HASH` 配置的是**资产管理 API 的 Basic Auth 管理员**；JSON 中的 `connection_properties.username` / `password` 才是数据库连接凭据，二者不要混用。
 
 先在仅限 HTTPS 的运行环境中配置管理 API 账号。密码必须传入 BCrypt 散列，不能填入明文：
 
@@ -159,6 +159,7 @@ curl --fail-with-body --user 'asset-admin:<asset-admin-password>' \
       "service_name": "ORCLPDB1",
       "read_only": true,
       "connection_properties": {
+        "jdbcUrl": "jdbc:oracle:thin:@//oracle-dev.internal:1521/ORCLPDB1",
         "username": "dba_mcp_ro",
         "password": "<database-password>"
       }
@@ -166,4 +167,4 @@ curl --fail-with-body --user 'asset-admin:<asset-admin-password>' \
   }'
 ```
 
-创建成功后，响应会保留 `connection_properties.username`，但必定省略 `connection_properties.password`。更新或轮换连接密码时，先通过 `GET /api/v1/assets/{assetId}` 取得当前 `asset.version`，然后向 `PATCH /api/v1/assets/{assetId}?version={version}` 提交完整资产草稿和新的 `connection_properties.password`；Swagger UI 的 `POST` 和 `PATCH` 操作也提供同样的请求体示例。
+创建成功后，响应会保留 `connection_properties.jdbcUrl` 和 `username`，但必定省略 `connection_properties.password`。更新非密码字段时，直接省略 `password`（或传递 `null`），服务会保留原密码；只有传递新的非空密码才会轮换密码。更新时先通过 `GET /api/v1/assets/{assetId}` 取得当前 `asset.version`，然后向 `PATCH /api/v1/assets/{assetId}?version={version}` 提交资产草稿；Swagger UI 的 `POST` 和 `PATCH` 操作也提供同样的请求体示例。
