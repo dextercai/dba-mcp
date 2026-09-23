@@ -11,17 +11,17 @@ HTTP Profile 额外提供受 Basic Auth 保护的资产库存 REST API：`/api/v
 | `getAssetTopology` | `assetId`、深度 | 资产与有向关系 | 深度 0–5、至多 200 个节点 |
 | `listRelatedAssets` | `assetId`、关系类型、方向 | 关系列表 | 关系类型为服务端枚举 |
 | `oracle.testDatabaseConnection` | Oracle `assetId` | 数据库产品、版本、认证身份 | 所有 Oracle 资产均可调用；不执行变更 |
-| `oracle.listDatabaseUsers` | Oracle `assetId` | 用户名、账户状态、`locked`、创建/锁定/过期时间、Profile、认证类型 | 固定 `DBA_USERS` 查询；不接收 SQL 或筛选条件；30 秒、500 行、4 MiB 上限 |
+| `oracle.listDatabaseUsers` | Oracle `assetId`、可选 `pageNum`、可选 `pageSize` | 用户名、账户状态、`locked`、创建/锁定/过期时间、Profile、认证类型 | 固定 `DBA_USERS` 查询；`pageNum` 默认 1、范围 1–10000，`pageSize` 默认 100、范围 1–500；不接收 SQL 或筛选条件；30 秒、4 MiB 上限 |
 | `oracle.unlockUser` | Oracle `assetId`、`username` | 用户名、解锁前后账户状态 | 受控变更工具：目标必须为专用 `read_only=false` 资产，且运行时开关和资产 `user_unlock_enabled` 均须显式启用；用户名仅支持未加引号 Oracle 标识符；先检查 `DBA_ROLE_PRIVS`、`DBA_SYS_PRIVS` 与 `V$PWFILE_USERS`，命中 DBA 类角色、广泛 `ANY` 系统权限、`ALTER USER` 等管理权限或 password-file 管理权限即拒绝；30 秒超时 |
-| `oracle.listSchemas` | Oracle `assetId` | Schema 名称及非敏感账户属性 | 固定 `DBA_USERS` 查询；30 秒、500 行、4 MiB 上限 |
-| `oracle.listTables` | Oracle `assetId`、`owner` | Schema 内的表及基础属性 | `owner` 仅支持未加引号的 Oracle 标识符；固定 `DBA_TABLES` 查询；30 秒、500 行、4 MiB 上限 |
-| `oracle.listTablespaceUsage` | Oracle `assetId` | 表空间及数据文件的原始容量字段；临时表空间的原始已用/空闲字段 | 固定数据字典查询；不计算汇总、空闲量或使用率；不接收 SQL 或筛选条件；30 秒、500 行、4 MiB 上限 |
-| `oracle.getSessionSummary` | Oracle `assetId` | 按数据库用户和会话状态聚合的连接数、最早登录时间与最长空闲/活动时长 | 固定 `V$SESSION` 查询；不返回客户端标识、操作系统用户或 SQL 文本；30 秒、500 行、4 MiB 上限 |
-| `oracle.listLongRunningTransactions` | Oracle `assetId` | 持续至少 60 秒的打开事务对应的会话、开始时间、持续秒数和 Undo 使用量 | 固定 `V$TRANSACTION`/`V$SESSION` 查询；不返回事务标识或 SQL 文本；30 秒、500 行、4 MiB 上限 |
-| `oracle.listBlockingSessions` | Oracle `assetId` | 本实例等待会话及可见阻塞会话的受限元数据 | 固定 `V$SESSION` 自连接；不返回客户端标识或 SQL 文本；RAC 的远程阻塞方不会补全；30 秒、500 行、4 MiB 上限 |
+| `oracle.listSchemas` | Oracle `assetId`、可选 `pageNum`、可选 `pageSize` | Schema 名称及非敏感账户属性 | 固定 `DBA_USERS` 查询；`pageNum` 默认 1、范围 1–10000，`pageSize` 默认 100、范围 1–500；30 秒、4 MiB 上限 |
+| `oracle.listTables` | Oracle `assetId`、`owner`、可选 `pageNum`、可选 `pageSize` | Schema 内的表及基础属性 | `owner` 仅支持未加引号的 Oracle 标识符；固定 `DBA_TABLES` 查询；`pageNum` 默认 1、范围 1–10000，`pageSize` 默认 100、范围 1–500；30 秒、4 MiB 上限 |
+| `oracle.listTablespaceUsage` | Oracle `assetId`、可选 `pageNum`、可选 `pageSize` | 表空间及数据文件的原始容量字段；临时表空间的原始已用/空闲字段 | 固定数据字典查询；不计算汇总、空闲量或使用率；不接收 SQL 或筛选条件；`pageNum` 默认 1、范围 1–10000，`pageSize` 默认 100、范围 1–500；30 秒、4 MiB 上限 |
+| `oracle.getSessionSummary` | Oracle `assetId`、可选 `pageNum`、可选 `pageSize` | 按数据库用户和会话状态聚合的连接数、最早登录时间与最长空闲/活动时长 | 固定 `V$SESSION` 查询；不返回客户端标识、操作系统用户或 SQL 文本；`pageNum` 默认 1、范围 1–10000，`pageSize` 默认 100、范围 1–500；30 秒、4 MiB 上限 |
+| `oracle.listLongRunningTransactions` | Oracle `assetId`、可选 `pageNum`、可选 `pageSize` | 持续至少 60 秒的打开事务对应的会话、开始时间、持续秒数和 Undo 使用量 | 固定 `V$TRANSACTION`/`V$SESSION` 查询；不返回事务标识或 SQL 文本；`pageNum` 默认 1、范围 1–10000，`pageSize` 默认 100、范围 1–500；30 秒、4 MiB 上限 |
+| `oracle.listBlockingSessions` | Oracle `assetId`、可选 `pageNum`、可选 `pageSize` | 本实例等待会话及可见阻塞会话的受限元数据 | 固定 `V$SESSION` 自连接；不返回客户端标识或 SQL 文本；RAC 的远程阻塞方不会补全；`pageNum` 默认 1、范围 1–10000，`pageSize` 默认 100、范围 1–500；30 秒、4 MiB 上限 |
 | `oracle.describeTable` | Oracle `assetId`、`owner`、`tableName` | 表属性、字段、约束字段与索引字段 | 名称仅支持未加引号的 Oracle 标识符；固定数据字典查询；不接收 SQL |
-| `oracle.listConstraints` | Oracle `assetId`、`owner` | 指定 Schema 跨表的约束、约束列及外键引用目标 | `owner` 仅支持未加引号的 Oracle 标识符；固定 `DBA_CONSTRAINTS`、`DBA_CONS_COLUMNS` 查询；单表详情使用 `oracle.describeTable`；30 秒、500 行、4 MiB 上限 |
-| `oracle.listIndexes` | Oracle `assetId`、`owner` | 指定 Schema 跨表的索引、索引列、方向和状态 | `owner` 仅支持未加引号的 Oracle 标识符；固定 `DBA_INDEXES`、`DBA_IND_COLUMNS` 查询；单表详情使用 `oracle.describeTable`；30 秒、500 行、4 MiB 上限 |
+| `oracle.listConstraints` | Oracle `assetId`、`owner`、可选 `pageNum`、可选 `pageSize` | 指定 Schema 跨表的约束、约束列及外键引用目标 | `owner` 仅支持未加引号的 Oracle 标识符；固定 `DBA_CONSTRAINTS`、`DBA_CONS_COLUMNS` 查询；单表详情使用 `oracle.describeTable`；`pageNum` 默认 1、范围 1–10000，`pageSize` 默认 100、范围 1–500；30 秒、4 MiB 上限 |
+| `oracle.listIndexes` | Oracle `assetId`、`owner`、可选 `pageNum`、可选 `pageSize` | 指定 Schema 跨表的索引、索引列、方向和状态 | `owner` 仅支持未加引号的 Oracle 标识符；固定 `DBA_INDEXES`、`DBA_IND_COLUMNS` 查询；单表详情使用 `oracle.describeTable`；`pageNum` 默认 1、范围 1–10000，`pageSize` 默认 100、范围 1–500；30 秒、4 MiB 上限 |
 | `oracle.listAlertLogEvents` | Oracle `assetId`、可选 `offset`、可选 `pageSize` | 当前容器最近的 ADR 告警事件元数据；可选原始消息文本 | 固定 `V$DIAG_ALERT_EXT` 查询；`offset` 默认 0，`pageSize` 默认 100、范围 1–500；30 秒、4 MiB 上限。`MESSAGE_TEXT` 默认不返回，只有 `dba.database.alert-log.allow-sensitive-message-text=true` 时才原样返回 |
 
 连接端点和驱动属性保存在资产 SQLite 的 `database_detail.connection_properties`。可选的 `jdbcUrl` 仅表示 Oracle Thin 端点；未配置时服务由 `host`、`port` 和 `service_name` 构造端点。认证始终单独读取 `username` 和 `password`，禁止将凭据嵌入 URL；一次性连接和 Hikari 连接池使用相同规则。经 HTTPS Basic Auth 保护的资产库存管理 REST API 可写入 `connection_properties.password`；它是只写字段，`PATCH` 省略或传递 `null` 时保留已有值，不会由任何 MCP 或 REST 读取接口返回，也不得记录到日志、审计参数或错误响应。令牌、SSH 私钥和钱包密钥仍不保存。SSH 固定动作和配置资源读取尚未注册。

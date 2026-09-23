@@ -27,15 +27,27 @@ public class OracleDatabaseService implements AutoCloseable {
         return query(assetId, sql, maxRows, statement -> { });
     }
     private QueryResult query(String assetId, String sql, Integer maxRows, StatementBinder binder) {
+        return query(assetId, sql, maxRows, 0, binder);
+    }
+    private QueryResult query(String assetId, String sql, Integer maxRows, int hiddenTrailingColumns, StatementBinder binder) {
         policy.validate(sql); int limit = maxRows == null ? MAX_ROWS : Math.min(Math.max(1, maxRows), MAX_ROWS); long started = System.nanoTime();
         try {
-            return pools.withDataSource(new AssetId(assetId), dataSource -> executeQuery(dataSource, sql, limit, binder, started));
+            return pools.withDataSource(new AssetId(assetId), dataSource -> executeQuery(dataSource, sql, limit, hiddenTrailingColumns, binder, started));
         } catch (ReadOnlySqlPolicy.QueryRejectedException e) { throw e; } catch (SQLException e) { throw new DatabaseOperationException("query failed", e); }
     }
-    private QueryResult executeQuery(HikariDataSource dataSource, String sql, int limit, StatementBinder binder, long started) throws SQLException {
+    private QueryResult pagedQuery(String assetId, String sql, Integer pageNum, Integer pageSize, int queryParameterCount, StatementBinder binder) {
+        OraclePageRequest page = OraclePageRequest.from(pageNum, pageSize);
+        String pagedSql = "SELECT page_rows.* FROM (SELECT source_rows.*, ROWNUM AS page_row_number FROM (" + sql + ") source_rows WHERE ROWNUM <= ?) page_rows WHERE page_row_number > ? ORDER BY page_row_number";
+        return query(assetId, pagedSql, page.pageSize(), 1, statement -> {
+            binder.bind(statement);
+            statement.setInt(queryParameterCount + 1, page.offset() + page.fetchSizeWithProbe());
+            statement.setInt(queryParameterCount + 2, page.offset());
+        });
+    }
+    private QueryResult executeQuery(HikariDataSource dataSource, String sql, int limit, int hiddenTrailingColumns, StatementBinder binder, long started) throws SQLException {
         try (Connection c = dataSource.getConnection(); PreparedStatement s = c.prepareStatement(sql)) {
             s.setQueryTimeout(30); s.setMaxRows(limit + 1); binder.bind(s); try (ResultSet rs = s.executeQuery()) {
-                ResultSetMetaData meta = rs.getMetaData(); List<String> columns = new ArrayList<>(); for (int i = 1; i <= meta.getColumnCount(); i++) columns.add(meta.getColumnLabel(i));
+                ResultSetMetaData meta = rs.getMetaData(); int visibleColumnCount = meta.getColumnCount() - hiddenTrailingColumns; List<String> columns = new ArrayList<>(); for (int i = 1; i <= visibleColumnCount; i++) columns.add(meta.getColumnLabel(i));
                 List<Map<String, Object>> rows = new ArrayList<>(); boolean truncated = false; int bytes = 0;
                 while (rs.next()) { if (rows.size() == limit) { truncated = true; break; } Map<String, Object> row = new LinkedHashMap<>();
                     for (int i = 1; i <= columns.size(); i++) { Object value = rs.getObject(i); String rendered = String.valueOf(value); if (rendered.length() > MAX_CELL_BYTES) { rendered = rendered.substring(0, MAX_CELL_BYTES); truncated = true; } bytes += rendered.length(); if (bytes > MAX_RESULT_BYTES) { truncated = true; break; } row.put(columns.get(i - 1), value == null ? null : rendered); }
@@ -46,8 +58,8 @@ public class OracleDatabaseService implements AutoCloseable {
         }
     }
     /** Lists Oracle accounts through a fixed, bounded DBA_USERS query. */
-    public QueryResult listUsers(String assetId) {
-        return query(assetId, DatabaseUserCatalog.LIST_USERS_SQL, null);
+    public QueryResult listUsers(String assetId, Integer pageNum, Integer pageSize) {
+        return pagedQuery(assetId, DatabaseUserCatalog.LIST_USERS_SQL, pageNum, pageSize, 0, statement -> { });
     }
     /** Unlocks one conventional Oracle account only after a fail-closed high-privilege preflight. */
     public OracleUserUnlockResult unlockUser(String assetId, String username) {
@@ -93,23 +105,23 @@ public class OracleDatabaseService implements AutoCloseable {
         }
     }
     /** Lists Oracle user-backed schemas through a fixed, bounded DBA_USERS query. */
-    public QueryResult listSchemas(String assetId) {
-        return query(assetId, SchemaCatalog.LIST_SCHEMAS, null);
+    public QueryResult listSchemas(String assetId, Integer pageNum, Integer pageSize) {
+        return pagedQuery(assetId, SchemaCatalog.LIST_SCHEMAS, pageNum, pageSize, 0, statement -> { });
     }
     /** Lists tables belonging to one conventional, unquoted Oracle schema identifier. */
-    public QueryResult listTables(String assetId, String owner) {
+    public QueryResult listTables(String assetId, String owner, Integer pageNum, Integer pageSize) {
         String normalizedOwner = OracleIdentifier.normalize("owner", owner);
-        return query(assetId, SchemaCatalog.LIST_TABLES, null, statement -> statement.setString(1, normalizedOwner));
+        return pagedQuery(assetId, SchemaCatalog.LIST_TABLES, pageNum, pageSize, 1, statement -> statement.setString(1, normalizedOwner));
     }
     /** Lists constraints across one schema; use describeTable for a single table definition. */
-    public QueryResult listConstraints(String assetId, String owner) {
+    public QueryResult listConstraints(String assetId, String owner, Integer pageNum, Integer pageSize) {
         String normalizedOwner = OracleIdentifier.normalize("owner", owner);
-        return query(assetId, OracleMetadataCatalog.LIST_CONSTRAINTS_SQL, null, statement -> statement.setString(1, normalizedOwner));
+        return pagedQuery(assetId, OracleMetadataCatalog.LIST_CONSTRAINTS_SQL, pageNum, pageSize, 1, statement -> statement.setString(1, normalizedOwner));
     }
     /** Lists indexes across one schema; use describeTable for a single table definition. */
-    public QueryResult listIndexes(String assetId, String owner) {
+    public QueryResult listIndexes(String assetId, String owner, Integer pageNum, Integer pageSize) {
         String normalizedOwner = OracleIdentifier.normalize("owner", owner);
-        return query(assetId, OracleMetadataCatalog.LIST_INDEXES_SQL, null, statement -> statement.setString(1, normalizedOwner));
+        return pagedQuery(assetId, OracleMetadataCatalog.LIST_INDEXES_SQL, pageNum, pageSize, 1, statement -> statement.setString(1, normalizedOwner));
     }
     /** Lists one bounded, offset-based page of current-container ADR alert events. */
     public QueryResult listAlertLogEvents(String assetId, Integer offset, Integer pageSize) {
@@ -137,20 +149,20 @@ public class OracleDatabaseService implements AutoCloseable {
         return value;
     }
     /** Lists permanent and temporary tablespace capacity through fixed dictionary views. */
-    public QueryResult listTablespaceUsage(String assetId) {
-        return query(assetId, TablespaceCatalog.LIST_USAGE_SQL, null);
+    public QueryResult listTablespaceUsage(String assetId, Integer pageNum, Integer pageSize) {
+        return pagedQuery(assetId, TablespaceCatalog.LIST_USAGE_SQL, pageNum, pageSize, 0, statement -> { });
     }
     /** Returns a bounded aggregate of user sessions without exposing client-identifying fields. */
-    public QueryResult getSessionSummary(String assetId) {
-        return query(assetId, SessionCatalog.SESSION_SUMMARY_SQL, null);
+    public QueryResult getSessionSummary(String assetId, Integer pageNum, Integer pageSize) {
+        return pagedQuery(assetId, SessionCatalog.SESSION_SUMMARY_SQL, pageNum, pageSize, 0, statement -> { });
     }
     /** Returns bounded metadata for open user transactions without SQL text or transaction identifiers. */
-    public QueryResult listLongRunningTransactions(String assetId) {
-        return query(assetId, SessionCatalog.LONG_RUNNING_TRANSACTIONS_SQL, null);
+    public QueryResult listLongRunningTransactions(String assetId, Integer pageNum, Integer pageSize) {
+        return pagedQuery(assetId, SessionCatalog.LONG_RUNNING_TRANSACTIONS_SQL, pageNum, pageSize, 0, statement -> { });
     }
     /** Returns bounded waiter/blocker metadata from the local Oracle instance without SQL text. */
-    public QueryResult listBlockingSessions(String assetId) {
-        return query(assetId, SessionCatalog.BLOCKING_SESSIONS_SQL, null);
+    public QueryResult listBlockingSessions(String assetId, Integer pageNum, Integer pageSize) {
+        return pagedQuery(assetId, SessionCatalog.BLOCKING_SESSIONS_SQL, pageNum, pageSize, 0, statement -> { });
     }
     /** Returns a fixed, bound-parameter Oracle dictionary description of one conventional table name. */
     public TableDefinition describeTable(String assetId, String owner, String tableName) {

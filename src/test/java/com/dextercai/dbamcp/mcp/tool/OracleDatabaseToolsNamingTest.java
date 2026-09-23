@@ -66,4 +66,18 @@ class OracleDatabaseToolsNamingTest {
         assertEquals(1, required.size());
         assertEquals("assetId", required.get(0).asText());
     }
+
+    @Test
+    void listToolPaginationParametersAreOptionalInTheGeneratedMcpSchema() throws Exception {
+        ToolCallback callback = java.util.Arrays.stream(MethodToolCallbackProvider.builder()
+                        .toolObjects(new OracleDatabaseTools(null)).build().getToolCallbacks())
+                .filter(candidate -> candidate.getToolDefinition().name().equals("oracle.listTables"))
+                .findFirst().orElse(null);
+
+        assertNotNull(callback);
+        var required = new ObjectMapper().readTree(callback.getToolDefinition().inputSchema()).path("required");
+        assertEquals(2, required.size());
+        assertEquals("assetId", required.get(0).asText());
+        assertEquals("owner", required.get(1).asText());
+    }
 }
