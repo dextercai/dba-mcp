@@ -707,7 +707,7 @@ OGG 参数文件可能包含账号别名、钱包位置、密钥引用或其他�
 
 当前已注册的 Oracle 工具必须使用 `oracle.` 命名空间前缀；该前缀是 MCP 工具契约的一部分。新增 Oracle 工具必须遵循相同规则，且不保留无前缀别名。
 
-除返回单一对象详情的工具外，已注册的 Oracle 列表/汇总工具应接受可选的一页式 `pageNum` 和 `pageSize` 参数，以控制 MCP 上下文占用。`pageNum` 从 1 开始，默认 1、最大 10000；`pageSize` 默认 100、范围 1–500。服务端额外读取一行以设置既有的 `truncated` 标志，调用方可在该标志为 `true` 时请求下一页。`oracle.listAlertLogEvents` 保持其既有的零基 `offset`/`pageSize` 契约。
+除返回单一对象详情的工具外，已注册的 Oracle 列表/汇总工具应接受可选的一页式 `pageNum` 和 `pageSize` 参数，以控制 MCP 上下文占用。`pageNum` 从 1 开始，默认 1、最大 10000；`pageSize` 默认 100、范围 1–500。服务端额外读取一行，以 `hasNextPage` 和可直接复用的 `nextPageNum` 表示正常分页延续；正常分页绝不能设置 `truncated=true`，以免 MCP Agent 将其当作异常结果。`truncated` 只表示单元格或响应大小保护导致的结果不完整。`oracle.listAlertLogEvents` 保持其既有的零基 `offset`/`pageSize` 契约，并以 `nextOffset` 返回续页位置。
 
 ### 15.3 主机与 OGG 工具
 
@@ -769,7 +769,10 @@ HTTP Profile 提供 `/api/v1/**` 的受控资产库存管理面。它只操作�
   "columns": [],
   "rows": [],
   "rowCount": 100,
-  "truncated": true,
+  "truncated": false,
+  "hasNextPage": true,
+  "nextPageNum": 2,
+  "nextOffset": null,
   "elapsedMs": 328,
   "warnings": []
 }

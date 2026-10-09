@@ -27,33 +27,33 @@ public class OracleDatabaseService implements AutoCloseable {
         return query(assetId, sql, maxRows, statement -> { });
     }
     private QueryResult query(String assetId, String sql, Integer maxRows, StatementBinder binder) {
-        return query(assetId, sql, maxRows, 0, binder);
+        return query(assetId, sql, maxRows, 0, false, binder);
     }
-    private QueryResult query(String assetId, String sql, Integer maxRows, int hiddenTrailingColumns, StatementBinder binder) {
+    private QueryResult query(String assetId, String sql, Integer maxRows, int hiddenTrailingColumns, boolean paginationProbe, StatementBinder binder) {
         policy.validate(sql); int limit = maxRows == null ? MAX_ROWS : Math.min(Math.max(1, maxRows), MAX_ROWS); long started = System.nanoTime();
         try {
-            return pools.withDataSource(new AssetId(assetId), dataSource -> executeQuery(dataSource, sql, limit, hiddenTrailingColumns, binder, started));
+            return pools.withDataSource(new AssetId(assetId), dataSource -> executeQuery(dataSource, sql, limit, hiddenTrailingColumns, paginationProbe, binder, started));
         } catch (ReadOnlySqlPolicy.QueryRejectedException e) { throw e; } catch (SQLException e) { throw new DatabaseOperationException("query failed", e); }
     }
     private QueryResult pagedQuery(String assetId, String sql, Integer pageNum, Integer pageSize, int queryParameterCount, StatementBinder binder) {
         OraclePageRequest page = OraclePageRequest.from(pageNum, pageSize);
         String pagedSql = "SELECT page_rows.* FROM (SELECT source_rows.*, ROWNUM AS page_row_number FROM (" + sql + ") source_rows WHERE ROWNUM <= ?) page_rows WHERE page_row_number > ? ORDER BY page_row_number";
-        return query(assetId, pagedSql, page.pageSize(), 1, statement -> {
+        return query(assetId, pagedSql, page.pageSize(), 1, true, statement -> {
             binder.bind(statement);
             statement.setInt(queryParameterCount + 1, page.offset() + page.fetchSizeWithProbe());
             statement.setInt(queryParameterCount + 2, page.offset());
-        });
+        }).forPage(page);
     }
-    private QueryResult executeQuery(HikariDataSource dataSource, String sql, int limit, int hiddenTrailingColumns, StatementBinder binder, long started) throws SQLException {
+    private QueryResult executeQuery(HikariDataSource dataSource, String sql, int limit, int hiddenTrailingColumns, boolean paginationProbe, StatementBinder binder, long started) throws SQLException {
         try (Connection c = dataSource.getConnection(); PreparedStatement s = c.prepareStatement(sql)) {
             s.setQueryTimeout(30); s.setMaxRows(limit + 1); binder.bind(s); try (ResultSet rs = s.executeQuery()) {
                 ResultSetMetaData meta = rs.getMetaData(); int visibleColumnCount = meta.getColumnCount() - hiddenTrailingColumns; List<String> columns = new ArrayList<>(); for (int i = 1; i <= visibleColumnCount; i++) columns.add(meta.getColumnLabel(i));
-                List<Map<String, Object>> rows = new ArrayList<>(); boolean truncated = false; int bytes = 0;
-                while (rs.next()) { if (rows.size() == limit) { truncated = true; break; } Map<String, Object> row = new LinkedHashMap<>();
+                List<Map<String, Object>> rows = new ArrayList<>(); boolean truncated = false; boolean hasNextPage = false; int bytes = 0;
+                while (rs.next()) { if (rows.size() == limit) { hasNextPage = paginationProbe; truncated = !paginationProbe; break; } Map<String, Object> row = new LinkedHashMap<>();
                     for (int i = 1; i <= columns.size(); i++) { Object value = rs.getObject(i); String rendered = String.valueOf(value); if (rendered.length() > MAX_CELL_BYTES) { rendered = rendered.substring(0, MAX_CELL_BYTES); truncated = true; } bytes += rendered.length(); if (bytes > MAX_RESULT_BYTES) { truncated = true; break; } row.put(columns.get(i - 1), value == null ? null : rendered); }
                     if (bytes > MAX_RESULT_BYTES) break; rows.add(row);
                 }
-                return new QueryResult(UUID.randomUUID().toString(), columns, rows, rows.size(), truncated, Duration.ofNanos(System.nanoTime() - started).toMillis());
+                return new QueryResult(UUID.randomUUID().toString(), columns, rows, rows.size(), truncated, hasNextPage, null, null, Duration.ofNanos(System.nanoTime() - started).toMillis());
             }
         }
     }
@@ -136,7 +136,8 @@ public class OracleDatabaseService implements AutoCloseable {
         return query(assetId, alertLog.allowSensitiveMessageText()
                 ? OracleAlertLogCatalog.LIST_EVENTS_WITH_MESSAGE_SQL
                 : OracleAlertLogCatalog.LIST_EVENTS_METADATA_SQL, normalizedPageSize,
-                statement -> { statement.setInt(1, upperBound); statement.setInt(2, normalizedOffset); });
+                0, true, statement -> { statement.setInt(1, upperBound); statement.setInt(2, normalizedOffset); })
+                .forOffset(normalizedOffset, normalizedPageSize);
     }
     private static int normalizeAlertLogOffset(Integer offset) {
         int value = offset == null ? 0 : offset;

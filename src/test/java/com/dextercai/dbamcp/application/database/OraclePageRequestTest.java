@@ -1,8 +1,12 @@
 package com.dextercai.dbamcp.application.database;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import java.util.List;
+import java.util.Map;
 import org.junit.jupiter.api.Test;
 
 class OraclePageRequestTest {
@@ -30,5 +34,27 @@ class OraclePageRequestTest {
         assertThrows(IllegalArgumentException.class, () -> OraclePageRequest.from(10_001, 10));
         assertThrows(IllegalArgumentException.class, () -> OraclePageRequest.from(1, 0));
         assertThrows(IllegalArgumentException.class, () -> OraclePageRequest.from(1, 501));
+    }
+
+    @Test
+    void exposesAnUnambiguousContinuationForNumberedPages() {
+        QueryResult result = new QueryResult("execution", List.of("value"), List.of(Map.of("value", "a")),
+                1, false, true, null, null, 1).forPage(OraclePageRequest.from(2, 25));
+
+        assertFalse(result.truncated());
+        assertTrue(result.hasNextPage());
+        assertEquals(3, result.nextPageNum());
+        assertEquals(null, result.nextOffset());
+    }
+
+    @Test
+    void exposesAnUnambiguousContinuationForOffsetPages() {
+        QueryResult result = new QueryResult("execution", List.of("value"), List.of(Map.of("value", "a")),
+                1, false, true, null, null, 1).forOffset(100, 50);
+
+        assertFalse(result.truncated());
+        assertTrue(result.hasNextPage());
+        assertEquals(150, result.nextOffset());
+        assertEquals(null, result.nextPageNum());
     }
 }
